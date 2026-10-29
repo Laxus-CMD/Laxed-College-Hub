@@ -1,9 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
+/* Design tokens. One dark theme, tuned for a long study session. */
+@theme {
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-canvas: #131315;
+  --color-surface: #1e1e21;
+  --color-raised: #28282c;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.16);
+  --color-ink: #f3f3f6;
+  --color-muted: #a4a4af;
+  --color-faint: #76767f;
+  --color-accent: #a58bff;
+  --color-accent-fill: #7352ff;
+  --color-good: #5ed6a0;
+  --color-warn: #f2b84b;
+  --color-bad: #ff6f7e;
+}
+
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 body {
   margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin accent rail on the left edge, carried over from the first layout. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 auto 0 8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--color-accent-fill), var(--color-accent) 55%, transparent);
+  pointer-events: none;
+  z-index: 60;
+}
+
+@media (max-width: 1023px) {
+  body::before {
+    display: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgb(115 82 255 / 0.5);
+}
+
+@keyframes flash {
+  0%,
+  40% {
+    background: rgb(165 139 255 / 0.16);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

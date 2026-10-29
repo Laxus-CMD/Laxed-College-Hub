@@ -2,9 +2,11 @@
 
 A student dashboard that puts your class schedule, deadlines, notes and grades in one place. Built for DLSU students first.
 
-> Status: early development. V1 is in progress.
+> Status: V1 is built. Next up is feedback from DLSU students, a PWA install and polish.
 
-<!-- Add a demo GIF here once the hero banner works: ![demo](docs/screenshots/demo.gif) -->
+![Overview](docs/screenshots/overview.png)
+
+<!-- Add a demo GIF here: ![demo](docs/screenshots/demo.gif) -->
 
 ## Why this exists
 
@@ -12,12 +14,14 @@ Students juggle a timetable app, a to-do app, a notes app and a grade spreadshee
 
 ## V1 features
 
-- [ ] **Hero banner** that changes with the time of day (in class, between classes, study mode)
-- [ ] **Weekly schedule** with color-coded courses and recurring classes
-- [ ] **Assignments and to-dos** with an urgency engine (overdue, due today, this week, later)
-- [ ] **Canvas sync** by importing an iCal (.ics) feed or file
-- [ ] **What-if grade calculator** with weighted components
-- [ ] **Notes** in markdown linked to class sessions
+- [x] **Hero banner** that changes with the time of day. It shows the class in session with a progress bar, the next class with a countdown, or study mode with your most urgent tasks. A live clock face marks the stretch to the next class.
+- [x] **Weekly schedule** with color-coded courses and recurring classes. Click an empty slot to add a class, pick several days at once, and get a warning when two classes overlap. A class detail drawer shows the room, professor, office hours, notes and open work.
+- [x] **Assignments and to-dos** with an urgency engine (overdue, due today, this week, later), course filters, quick add and undo on delete.
+- [x] **Canvas sync** by importing an iCal (.ics) file or pasted feed text. Course tags like `[FNDSTAT-A]` match your courses and re-importing skips what you already have.
+- [x] **What-if grade calculator** with weighted components, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
+- [x] **Notes** in markdown linked to class sessions. Take notes for the class in session straight from the hero banner.
+
+Also in V1: search across courses, tasks, classes and notes (press `/`), sample data you can clear or restore, and everything saved in the browser.
 
 ## Tech stack
 
@@ -79,12 +83,14 @@ docs/             Architecture notes, decisions and screenshots
 
 ## Roadmap
 
-1. Hero banner time-state engine with tests
-2. Weekly schedule grid
-3. Assignments tab and .ics import
-4. Grade calculator
-5. Notes, PWA install and polish
-6. Deploy and gather feedback from DLSU students
+1. ~~Hero banner time-state engine with tests~~
+2. ~~Weekly schedule grid~~
+3. ~~Assignments tab and .ics import~~
+4. ~~Grade calculator~~
+5. ~~Notes~~
+6. PWA install and polish
+7. Deploy and gather feedback from DLSU students
+8. Canvas URL sync through a small proxy, and walk time between buildings
 
 ## License
 
