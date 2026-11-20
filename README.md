@@ -21,7 +21,7 @@ Students juggle a timetable app, a to-do app, a notes app and a grade spreadshee
 - [x] **What-if grade calculator** with weighted components, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
 - [x] **Notes** in markdown linked to class sessions. Take notes for the class in session straight from the hero banner.
 
-Also in V1: search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), sample data you can clear or restore, and everything saved in the browser.
+Also in V1: sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), sample data you can clear or restore, and everything saved in the browser.
 
 ## Tech stack
 
@@ -48,6 +48,19 @@ npm run dev
 ```
 
 Open the local URL that Vite prints.
+
+### Sign in with Google (optional)
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth client ID of type **Web application**.
+2. Under **Authorized JavaScript origins**, add `http://localhost:5173` and your deployed origin, `https://laxed-college-hub.vercel.app`.
+3. Copy `.env.example` to `.env.local` and set `VITE_GOOGLE_CLIENT_ID`.
+4. For the deployed site, set `VITE_GOOGLE_CLIENT_ID` in Vercel (Project Settings, Environment Variables) and redeploy. For the GitHub Pages mirror, add a repository variable named `GOOGLE_CLIENT_ID`.
+
+Without a client id the login page still works, and students can continue without an account.
+
+The [Privacy Policy](public/privacy.html) and [Terms of Service](public/terms.html) are static pages in `public/`, and `index.html` links to them in plain HTML, so Google's homepage check finds them without running JavaScript. On the OAuth consent screen use `https://laxed-college-hub.vercel.app/`, `/privacy.html` and `/terms.html`.
+
+
 
 ## Scripts
 

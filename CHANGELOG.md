@@ -2,6 +2,14 @@
 
 Patch notes for College Hub. Newest first.
 
+## 2026-11-21 · Sign in with Google
+
+### New
+
+- **Login page.** Sign in with your Google account, or continue without one. Your first name fills in the greeting.
+- **Account in Your data.** See which account you are using and sign out. Signing out keeps your data on this device.
+- **Privacy Policy and Terms of Service** pages, linked from the login page and Your data.
+
 ## 2026-11-20 · UI refresh: light and dark mode
 
 A cleaner, calmer look inspired by Apple's apps. Every feature works the same as before.

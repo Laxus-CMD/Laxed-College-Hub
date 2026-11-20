@@ -6,9 +6,11 @@ import { Sidebar } from '@/app/Sidebar'
 import { ToastHost } from '@/app/ToastHost'
 import { useRoute, type Route } from '@/lib/route'
 import AssignmentsPage from '@/features/assignments/AssignmentsPage'
+import LoginPage from '@/features/auth/LoginPage'
 import GradesPage from '@/features/grades/GradesPage'
 import NotesPage from '@/features/notes/NotesPage'
 import SchedulePage from '@/features/schedule/SchedulePage'
+import { useIsSignedIn } from '@/store/useAuthStore'
 import { useApplyTheme } from '@/store/useThemeStore'
 
 const PAGES: Record<Route, () => React.JSX.Element> = {
@@ -23,6 +25,7 @@ export default function App() {
   const route = useRoute()
   const Page = PAGES[route]
   useApplyTheme()
+  const signedIn = useIsSignedIn()
 
   // Press "/" anywhere outside a text field to jump to search.
   useEffect(() => {
@@ -41,6 +44,8 @@ export default function App() {
   useEffect(() => {
     if (window.scrollY > 0) window.scrollTo({ top: 0 })
   }, [route])
+
+  if (!signedIn) return <LoginPage />
 
   return (
     <div className="grid min-h-svh grid-cols-[minmax(0,1fr)] lg:grid-cols-[264px_minmax(0,1fr)]">
