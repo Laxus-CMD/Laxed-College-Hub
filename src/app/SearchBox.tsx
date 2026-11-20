@@ -79,7 +79,7 @@ export function SearchBox() {
 
   return (
     <div ref={box} className="relative">
-      <Search className="pointer-events-none absolute top-[13px] left-3.5 size-[18px] text-muted" aria-hidden="true" />
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint" aria-hidden="true" />
       <input
         id={SEARCH_INPUT_ID}
         type="search"
@@ -97,16 +97,16 @@ export function SearchBox() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className="h-11 w-full rounded-[14px] border border-transparent bg-canvas pr-11 pl-[42px] text-sm placeholder:text-muted focus:border-accent focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+        className="h-9 w-full rounded-[10px] border border-transparent bg-fill-strong pr-10 pl-9 text-sm transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-faint focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/15 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
       />
-      <kbd className="pointer-events-none absolute top-[11px] right-3 hidden rounded-md border border-line-strong px-[7px] text-[11px] leading-5 text-faint lg:block">
+      <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 rounded-[5px] border border-line-strong px-1.5 font-sans text-[11px] leading-[18px] text-faint lg:block">
         /
       </kbd>
       {open && query.trim() ? (
         <div
           id="search-results"
           role="listbox"
-          className="absolute inset-x-0 top-[50px] z-30 max-h-[360px] overflow-auto rounded-[14px] border border-line-strong bg-raised p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.5)]"
+          className="absolute inset-x-0 top-11 z-30 max-h-[360px] min-w-[280px] animate-[pop-in_160ms_var(--ease-apple)] overflow-auto rounded-xl border border-line bg-raised p-1.5 shadow-pop dark:border-line-strong"
         >
           {hits.length === 0 ? (
             <p className="p-3 text-[13px] text-muted">No matches. Try a course code or a task name.</p>
@@ -119,7 +119,7 @@ export function SearchBox() {
                 aria-selected={i === index}
                 onMouseEnter={() => setIndex(i)}
                 onClick={() => go(h)}
-                className={cn('flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left', i === index && 'bg-white/8')}
+                className={cn('flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left', i === index && 'bg-accent-fill text-on-accent [&_span]:text-on-accent/80')}
               >
                 <Dot color={h.color ?? 'var(--color-faint)'} />
                 <span className="min-w-0 flex-1">

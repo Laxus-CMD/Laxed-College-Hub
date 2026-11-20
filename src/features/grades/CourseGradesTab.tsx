@@ -190,7 +190,7 @@ export function CourseGradesTab() {
                 })}
               </ul>
               {projected !== null ? (
-                <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-[14px] bg-canvas px-4 py-3.5" role="status">
+                <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl bg-fill px-4 py-3.5" role="status">
                   <span className="text-muted">Final grade would be</span>
                   <b className="text-xl font-semibold tabular-nums">{projected.toFixed(1)}%</b>
                   <Pill>{percentToGrade(projected, scale).toFixed(1)}</Pill>
@@ -217,7 +217,7 @@ export function CourseGradesTab() {
             ) : (
               <>
                 <div className="flex flex-wrap items-baseline gap-3">
-                  <div className="text-[46px] leading-none font-medium tracking-tight tabular-nums">{summary.average.toFixed(1)}%</div>
+                  <div className="text-[48px] leading-none font-semibold tracking-[-0.04em] tabular-nums">{summary.average.toFixed(1)}%</div>
                   {grade !== null ? <Pill>{grade.toFixed(1)}</Pill> : null}
                 </div>
                 <p className="mt-2 text-muted">Average across graded work</p>
@@ -226,25 +226,25 @@ export function CourseGradesTab() {
             {summary.totalWeight > 0 ? (
               <>
                 <div
-                  className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-white/8"
+                  className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-fill-strong"
                   role="img"
                   aria-label={`Locked in ${summary.lockedPercent.toFixed(0)} percent, remaining ${(100 - summary.lockedPercent).toFixed(0)} percent`}
                 >
-                  <i className="block h-full bg-accent" style={{ width: `${summary.lockedPercent}%` }} />
+                  <i className="block h-full rounded-full bg-accent-fill" style={{ width: `${summary.lockedPercent}%` }} />
                 </div>
                 <div className="mt-2.5 flex flex-wrap gap-4 text-xs text-muted">
                   <span className="inline-flex items-center gap-1.5">
-                    <Dot color="var(--color-accent)" />
+                    <Dot color="var(--color-accent-fill)" />
                     Locked in {trim(summary.earnedPoints)} of {trim(summary.totalWeight)}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Dot color="rgb(255 255 255 / 0.2)" />
+                    <Dot color="var(--color-line-strong)" />
                     Remaining {trim(summary.remainingWeight)}
                   </span>
                 </div>
               </>
             ) : null}
-            <div className="mt-3.5 rounded-[14px] bg-canvas px-4 py-3.5" role="status">
+            <div className="mt-3.5 rounded-xl bg-fill px-4 py-3.5" role="status">
               {need.status === 'empty' ? (
                 <p className="text-muted">Add components with weights to see your grade.</p>
               ) : need.status === 'complete' ? (

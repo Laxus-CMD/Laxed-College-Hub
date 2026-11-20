@@ -41,15 +41,16 @@ function Shell({
   return (
     <section
       aria-label="Right now"
-      className="relative flex min-h-[244px] flex-col overflow-hidden rounded-3xl border border-line bg-raised px-[26px] pt-6 pb-[22px]"
+      className="relative flex min-h-[248px] flex-col overflow-hidden rounded-[22px] border border-line bg-surface px-6 pt-6 pb-6 shadow-card sm:px-8 sm:pt-7 dark:border-transparent"
     >
       <ClockFace
         now={now}
         arc={arc}
-        className="pointer-events-none absolute -right-16 -bottom-[84px] size-[272px] max-sm:-right-16 max-sm:-bottom-[72px] max-sm:size-[190px]"
+        className="pointer-events-none absolute -right-16 -bottom-[84px] size-[272px] text-ink max-sm:-right-16 max-sm:-bottom-[72px] max-sm:size-[190px]"
       />
-      <div className="relative flex justify-between gap-3 text-[13px] text-muted">
-        <span aria-live="polite" className={cn(accent && 'text-accent')}>
+      <div className="relative flex justify-between gap-3 text-[13px] font-medium text-muted">
+        <span aria-live="polite" className={cn('inline-flex items-center gap-2', accent && 'text-accent')}>
+          {accent ? <i className="size-1.5 animate-pulse rounded-full bg-accent-fill" aria-hidden="true" /> : null}
           {status}
         </span>
         {room ? (
@@ -61,8 +62,8 @@ function Shell({
       </div>
       {children}
       {bar !== undefined ? (
-        <div className="absolute inset-x-0 bottom-0 h-1 bg-white/7">
-          <i className="block h-full bg-accent" style={{ width: `${Math.min(100, Math.max(0, bar * 100)).toFixed(1)}%` }} />
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-fill-strong">
+          <i className="block h-full bg-accent-fill transition-[width] duration-1000" style={{ width: `${Math.min(100, Math.max(0, bar * 100)).toFixed(1)}%` }} />
         </div>
       ) : null}
     </section>
@@ -72,7 +73,7 @@ function Shell({
 function ClassTitle({ code, name }: { code: string; name: string }) {
   return (
     <>
-      <h2 className="relative mt-8 text-[clamp(34px,5vw,48px)] leading-[1.05] font-medium tracking-tight">{code}</h2>
+      <h2 className="relative mt-8 text-[clamp(36px,5vw,52px)] leading-[1.04] font-semibold tracking-[-0.035em]">{code}</h2>
       <p className="relative mt-1.5 text-lg text-muted">{name}</p>
     </>
   )
@@ -134,7 +135,7 @@ export function HeroBanner({ state, now }: { state: HeroState; now: Date }) {
   const nextCourse = next ? courses.get(next.session.courseId) : undefined
   return (
     <Shell now={now} status="Study mode" arc={next && next.start.getDate() === now.getDate() ? { from: nowMin, to: toMinutes(next.session.start) } : null}>
-      <h2 className="relative mt-6 text-[clamp(26px,4vw,34px)] leading-tight font-medium tracking-tight">
+      <h2 className="relative mt-6 text-[clamp(28px,4vw,36px)] leading-tight font-semibold tracking-[-0.03em]">
         {shown.length === 0 ? 'You are all caught up' : anyOverdue ? 'Catch up first' : 'Focus time'}
       </h2>
       {shown.length > 0 ? (

@@ -4,7 +4,10 @@ import { cn } from '@/lib/cn'
 export function Card({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
     <section
-      className={cn('rounded-[20px] border border-line bg-surface px-[22px] py-5', className)}
+      className={cn(
+        'rounded-2xl border border-line bg-surface p-5 shadow-card dark:border-transparent sm:p-6',
+        className,
+      )}
       {...props}
     />
   )
@@ -20,10 +23,10 @@ export function CardHeader({
   actions?: ReactNode
 }) {
   return (
-    <div className="mb-3.5 flex min-h-8 items-center justify-between gap-3">
-      <h3 className="text-base font-medium">{title}</h3>
+    <div className="mb-4 flex min-h-8 items-center justify-between gap-3">
+      <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{title}</h3>
       <div className="flex items-center gap-2">
-        {meta ? <span className="text-xs text-muted">{meta}</span> : null}
+        {meta ? <span className="text-xs text-muted tabular-nums">{meta}</span> : null}
         {actions}
       </div>
     </div>

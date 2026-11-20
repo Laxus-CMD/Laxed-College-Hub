@@ -21,7 +21,7 @@ Students juggle a timetable app, a to-do app, a notes app and a grade spreadshee
 - [x] **What-if grade calculator** with weighted components, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
 - [x] **Notes** in markdown linked to class sessions. Take notes for the class in session straight from the hero banner.
 
-Also in V1: search across courses, tasks, classes and notes (press `/`), sample data you can clear or restore, and everything saved in the browser.
+Also in V1: search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), sample data you can clear or restore, and everything saved in the browser.
 
 ## Tech stack
 

@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/cn'
 
 const FIELD_BASE =
-  'rounded-xl border border-line bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none'
+  'rounded-[10px] border border-line bg-surface px-3 text-sm text-ink transition-[border-color,box-shadow] duration-150 placeholder:text-faint focus:border-accent focus:ring-4 focus:ring-accent/15 focus:outline-none dark:bg-fill'
 
 /** Shared look for inputs. A width or height in `className` replaces the default, so `w-24` really is 96px. */
 function fieldClass(className?: string, extra = ''): string {
@@ -14,7 +14,7 @@ function fieldClass(className?: string, extra = ''): string {
 
 export function Label({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <label className={cn('flex flex-col gap-1.5 text-[13px] text-muted', className)}>
+    <label className={cn('flex flex-col gap-1.5 text-[13px] font-medium text-muted', className)}>
       {label}
       {children}
     </label>
@@ -72,7 +72,7 @@ export function Choice({
       />
       <span
         className={cn(
-          'block rounded-[10px] border border-line-strong px-3.5 py-2 text-[13px] text-muted transition-colors hover:text-ink peer-checked:border-accent peer-checked:bg-accent/15 peer-checked:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent',
+          'block rounded-full border border-line px-3.5 py-1.5 text-[13px] text-muted transition-colors hover:bg-fill hover:text-ink peer-checked:border-accent-fill peer-checked:bg-accent-fill peer-checked:text-on-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent',
           className,
         )}
       >

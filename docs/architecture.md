@@ -31,6 +31,7 @@ Grades ──> gradeMath (pure functions) ──> Score cards and what-if slider
 | `useNoteStore` | Markdown notes with course and session links | Yes |
 | `useGradeStore` | Grade components, scale, overrides, targets, previous CGPA | Yes |
 | `useSettingsStore` | Name and the sample data flag | Yes |
+| `useThemeStore` | Light, Dark or System appearance. `index.html` applies it before first paint | Yes |
 | `useUiStore` | Open dialogs, filters, selections, toast | No |
 
 Deleting across stores goes through `store/actions.ts`. Each action takes a snapshot first so Undo can restore everything.

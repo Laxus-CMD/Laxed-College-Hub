@@ -26,7 +26,7 @@ export function GpaCard() {
         </>
       ) : (
         <>
-          <div className="text-[46px] leading-none font-medium tracking-tight tabular-nums">{term.gpa.toFixed(2)}</div>
+          <div className="text-[48px] leading-none font-semibold tracking-[-0.04em] tabular-nums">{term.gpa.toFixed(2)}</div>
           <p className="mt-2 text-muted">
             {plural(term.graded, 'course')}, {trim(term.units)} units counted
           </p>

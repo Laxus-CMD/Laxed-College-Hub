@@ -39,7 +39,7 @@ export function WeeklyGrid({ now }: { now: Date }) {
   const gridCols = { gridTemplateColumns: `56px repeat(${cols}, minmax(112px, 1fr))`, minWidth: 56 + cols * 112 }
 
   return (
-    <div className="max-h-[calc(100vh-200px)] min-h-[420px] overflow-auto rounded-[20px] border border-line bg-surface">
+    <div className="max-h-[calc(100vh-200px)] min-h-[420px] overflow-auto rounded-2xl border border-line bg-surface shadow-card dark:border-transparent">
       <div className="sticky top-0 z-[4] grid border-b border-line bg-surface" style={gridCols}>
         <div />
         {days.map((d) => {
@@ -78,7 +78,7 @@ export function WeeklyGrid({ now }: { now: Date }) {
               data-day={d}
               role="presentation"
               onClick={addAt(d)}
-              className={cn('relative cursor-cell border-l border-line', today && 'bg-accent/5')}
+              className={cn('relative cursor-cell border-l border-line', today && 'bg-accent/[0.04]')}
               style={{
                 backgroundImage: `repeating-linear-gradient(to bottom, var(--color-line) 0, var(--color-line) 1px, transparent 1px, transparent ${PX_PER_HOUR}px)`,
               }}
@@ -104,7 +104,7 @@ export function WeeklyGrid({ now }: { now: Date }) {
                       left: `calc(${(b.lane / b.lanes) * 100}% + 4px)`,
                       width: `calc(${100 / b.lanes}% - 8px)`,
                       borderLeftColor: course?.color,
-                      backgroundColor: `color-mix(in srgb, ${course?.color ?? '#a58bff'} 22%, var(--color-surface))`,
+                      backgroundColor: `color-mix(in srgb, ${course?.color ?? 'var(--color-accent)'} 20%, var(--color-surface))`,
                     }}
                   >
                     <b className="truncate text-[13px] font-medium">{course?.code ?? 'Class'}</b>

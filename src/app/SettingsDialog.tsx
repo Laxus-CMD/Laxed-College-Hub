@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input, Label } from '@/components/ui/Field'
+import { ThemeSegmented } from '@/app/ThemeToggle'
 import { clearAllData, loadDemoData } from '@/store/actions'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
@@ -39,12 +40,16 @@ export function SettingsDialog() {
         <p className="text-[13px] text-muted">
           Courses, classes, tasks, notes and grades are saved in this browser on this device. Nothing is sent anywhere.
         </p>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[13px] font-medium text-muted">Appearance</span>
+          <ThemeSegmented showLabels />
+        </div>
         <div className="h-px bg-line" />
         <div className="flex flex-wrap gap-2.5">
-          <Button size="sm" variant={armed === 'clear' ? 'danger' : 'ghost'} onClick={() => confirm('clear')}>
+          <Button size="sm" variant={armed === 'clear' ? 'destructive' : 'ghost'} onClick={() => confirm('clear')}>
             {armed === 'clear' ? 'Click again to clear' : 'Clear all data'}
           </Button>
-          <Button size="sm" variant={armed === 'restore' ? 'danger' : 'ghost'} onClick={() => confirm('restore')}>
+          <Button size="sm" variant={armed === 'restore' ? 'destructive' : 'ghost'} onClick={() => confirm('restore')}>
             {armed === 'restore' ? 'Click again to restore' : 'Restore sample data'}
           </Button>
         </div>

@@ -4,6 +4,7 @@ import { useNoteStore } from '@/store/useNoteStore'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
+import { useThemeStore } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
 
 /** Puts every store back to the demo data for a given moment. Used by tests. */
@@ -14,6 +15,8 @@ export function resetStores(now: Date): void {
   useNoteStore.setState({ notes: demo.notes })
   useGradeStore.setState({ components: demo.components, overrides: {}, targets: {}, prior: { cgpa: null, units: null } })
   useSettingsStore.setState({ name: '', isDemo: true, bannerDismissed: false })
+  useThemeStore.setState({ theme: 'system' })
+  delete document.documentElement.dataset.theme
   useUiStore.setState({
     dialog: null,
     drawerSessionId: null,

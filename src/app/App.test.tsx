@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetStores } from '@/test/seed'
 import { useTaskStore } from '@/store/useTaskStore'
+import { THEME_STORAGE_KEY } from '@/store/useThemeStore'
 import App from './App'
 
 // Monday, October 26 2026, 8:45 AM
@@ -102,6 +103,27 @@ describe('Navigation and search', () => {
     await u.type(screen.getByRole('combobox'), 'binary')
     await u.click(await screen.findByRole('option', { name: /Binary Search Tree/ }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Tasks & Assignments' })).toBeInTheDocument()
+  })
+})
+
+describe('Appearance', () => {
+  it('switches between light and dark and remembers the choice', async () => {
+    const u = user()
+    render(<App />)
+    // jsdom has no prefers-color-scheme, so System resolves to light.
+    expect(document.documentElement.dataset.theme).toBe('light')
+
+    await u.click(screen.getByRole('radio', { name: 'Dark' }))
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) ?? '{}').state.theme).toBe('dark')
+
+    await u.click(screen.getByRole('button', { name: 'Switch to light mode' }))
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(screen.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
+
+    // The choice survives moving between pages.
+    await u.click(screen.getByRole('link', { name: 'Notes' }))
+    expect(document.documentElement.dataset.theme).toBe('light')
   })
 })
 

@@ -16,7 +16,7 @@ export function ToastHost() {
   return (
     <div
       role="status"
-      className="fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3.5 rounded-[14px] border border-line-strong bg-raised py-2.5 pr-3 pl-4 shadow-[0_18px_40px_rgba(0,0,0,0.5)]"
+      className="fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 animate-[pop-in_220ms_var(--ease-apple)] items-center gap-3.5 rounded-full border border-line bg-raised/90 py-2 pr-2 pl-5 text-[13px] font-medium shadow-pop backdrop-blur-xl max-lg:bottom-[calc(76px+env(safe-area-inset-bottom))] dark:border-line-strong"
     >
       <span>{toast.message}</span>
       {toast.undo ? (
@@ -26,7 +26,7 @@ export function ToastHost() {
             toast.undo?.()
             hide()
           }}
-          className="cursor-pointer rounded-lg px-2 py-1 font-medium text-accent hover:bg-white/8"
+          className="cursor-pointer rounded-full px-3 py-1 font-semibold text-accent hover:bg-fill"
         >
           Undo
         </button>

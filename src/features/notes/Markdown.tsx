@@ -22,7 +22,7 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
             )
           case 'code':
             return (
-              <code key={i} className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[0.9em]">
+              <code key={i} className="rounded-md bg-fill-strong px-1.5 py-0.5 font-mono text-[0.9em]">
                 {n.v}
               </code>
             )
@@ -101,7 +101,7 @@ export function Markdown({ source }: { source: string }) {
             )
           case 'code':
             return (
-              <pre key={i} className="overflow-x-auto rounded-xl bg-canvas p-3.5 font-mono text-[13px] leading-relaxed">
+              <pre key={i} className="overflow-x-auto rounded-xl bg-fill p-3.5 font-mono text-[13px] leading-relaxed">
                 <code>{b.v}</code>
               </pre>
             )

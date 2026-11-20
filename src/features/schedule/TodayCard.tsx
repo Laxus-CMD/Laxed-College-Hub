@@ -38,8 +38,8 @@ export function TodayCard({ now }: { now: Date }) {
                   type="button"
                   onClick={() => openDrawer(s.id)}
                   className={cn(
-                    'grid w-full cursor-pointer grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border-l-[3px] px-3 py-2.5 text-left',
-                    state === 'now' ? 'bg-accent/15' : 'bg-canvas hover:bg-white/5',
+                    'grid w-full cursor-pointer grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border-l-[3px] px-3 py-2.5 text-left transition-colors',
+                    state === 'now' ? 'bg-accent/10' : 'bg-fill hover:bg-fill-strong',
                     state === 'done' && 'opacity-45',
                   )}
                   style={{ borderLeftColor: course?.color }}
