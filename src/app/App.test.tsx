@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetStores } from '@/test/seed'
+import { resetStores, TEST_USER } from '@/test/seed'
+import { useAuthStore } from '@/store/useAuthStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { THEME_STORAGE_KEY } from '@/store/useThemeStore'
 import App from './App'
@@ -103,6 +104,34 @@ describe('Navigation and search', () => {
     await u.type(screen.getByRole('combobox'), 'binary')
     await u.click(await screen.findByRole('option', { name: /Binary Search Tree/ }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Tasks & Assignments' })).toBeInTheDocument()
+  })
+})
+
+describe('Sign in', () => {
+  it('shows the login page when signed out and lets a guest in', async () => {
+    useAuthStore.setState({ user: null, guest: false })
+    const u = user()
+    render(<App />)
+    expect(screen.getByRole('heading', { level: 1, name: 'College Hub' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Main menu' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy.html')
+    expect(screen.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms.html')
+    await u.click(screen.getByRole('button', { name: 'Continue without an account' }))
+    expect(await screen.findByRole('heading', { name: /good morning/i })).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('college-hub.auth') ?? '{}').state.guest).toBe(true)
+  })
+
+  it('shows the Google account and signs out back to the login page', async () => {
+    const u = user()
+    render(<App />)
+    expect(screen.getByText(TEST_USER.name)).toBeInTheDocument()
+    await u.click(screen.getAllByRole('button', { name: 'Your data' })[0]!)
+    const dialog = await screen.findByRole('dialog', { name: 'Your data' })
+    expect(within(dialog).getByText(TEST_USER.email)).toBeInTheDocument()
+    await u.click(within(dialog).getByRole('button', { name: 'Sign out' }))
+    expect(await screen.findByRole('button', { name: 'Continue without an account' })).toBeInTheDocument()
+    // Signing out keeps the data on this device.
+    expect(useTaskStore.getState().tasks.length).toBeGreaterThan(0)
   })
 })
 

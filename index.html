@@ -23,7 +23,25 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Static content for crawlers and no-JS visitors (including Google's OAuth homepage check).
+      React replaces everything inside #root as soon as the app starts.
+    -->
+    <div id="root">
+      <main style="max-width: 560px; margin: 0 auto; padding: 64px 20px; text-align: center">
+        <h1 style="margin: 0; font-size: 28px; letter-spacing: -0.02em">College Hub</h1>
+        <p style="color: var(--color-muted, #6e6e73)">
+          A free student dashboard for class schedules, deadlines, notes and grades. Sign in with Google or continue
+          without an account. Your data is saved in your own browser.
+        </p>
+        <p>
+          <a href="privacy.html">Privacy Policy</a>
+          &middot;
+          <a href="terms.html">Terms of Service</a>
+        </p>
+        <noscript><p>College Hub needs JavaScript to run.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

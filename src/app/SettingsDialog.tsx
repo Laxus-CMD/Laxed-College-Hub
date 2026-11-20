@@ -3,15 +3,20 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input, Label } from '@/components/ui/Field'
 import { ThemeSegmented } from '@/app/ThemeToggle'
+import { Avatar } from '@/features/auth/Avatar'
+import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { clearAllData, loadDemoData } from '@/store/actions'
+import { useAuthStore } from '@/store/useAuthStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
 
-/** Name, plus clearing or restoring the sample data. */
+/** Account, name, plus clearing or restoring the sample data. */
 export function SettingsDialog() {
   const close = useUiStore((s) => s.closeDialog)
   const name = useSettingsStore((s) => s.name)
   const setName = useSettingsStore((s) => s.setName)
+  const user = useAuthStore((s) => s.user)
+  const signOut = useAuthStore((s) => s.signOut)
   const [draft, setDraft] = useState(name)
   const [armed, setArmed] = useState<'clear' | 'restore' | null>(null)
 
@@ -34,11 +39,35 @@ export function SettingsDialog() {
   return (
     <Dialog title="Your data" onClose={close}>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <section aria-label="Account" className="flex items-center gap-3 rounded-xl bg-fill px-3 py-2.5">
+          <Avatar user={user} className="size-9" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{user ? user.name : 'Guest'}</p>
+            <p className="truncate text-[13px] text-muted">{user ? user.email : 'Not signed in'}</p>
+          </div>
+          <Button
+            size="sm"
+            variant={user ? 'ghost' : 'primary'}
+            onClick={() => {
+              close()
+              signOut()
+            }}
+          >
+            {user ? 'Sign out' : 'Sign in'}
+          </Button>
+        </section>
         <Label label="Your name">
           <Input data-autofocus maxLength={30} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Shown in the greeting" />
         </Label>
         <p className="text-[13px] text-muted">
-          Courses, classes, tasks, notes and grades are saved in this browser on this device. Nothing is sent anywhere.
+          Courses, classes, tasks, notes and grades are saved in this browser on this device. Nothing is sent anywhere.{' '}
+          <a href={PRIVACY_URL} className="text-accent underline-offset-2 hover:underline">
+            Privacy Policy
+          </a>
+          {' · '}
+          <a href={TERMS_URL} className="text-accent underline-offset-2 hover:underline">
+            Terms
+          </a>
         </p>
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-medium text-muted">Appearance</span>
