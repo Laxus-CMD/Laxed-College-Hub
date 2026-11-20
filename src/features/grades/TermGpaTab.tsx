@@ -12,7 +12,7 @@ const trim = (n: number) => String(Number(n.toFixed(1)))
 const parse = (v: string): number | null => (v === '' || Number.isNaN(Number(v)) ? null : Number(v))
 
 function Result({ children }: { children: React.ReactNode }) {
-  return <div className="mt-3.5 rounded-[14px] bg-canvas px-4 py-3.5">{children}</div>
+  return <div className="mt-3.5 rounded-xl bg-fill px-4 py-3.5">{children}</div>
 }
 
 export function TermGpaTab() {
@@ -107,7 +107,7 @@ export function TermGpaTab() {
             </>
           ) : (
             <>
-              <div className="text-[46px] leading-none font-medium tracking-tight tabular-nums">{term.gpa.toFixed(2)}</div>
+              <div className="text-[48px] leading-none font-semibold tracking-[-0.04em] tabular-nums">{term.gpa.toFixed(2)}</div>
               <p className="mt-2 text-muted">
                 {term.graded} {term.graded === 1 ? 'course' : 'courses'}, {trim(term.units)} units counted
               </p>

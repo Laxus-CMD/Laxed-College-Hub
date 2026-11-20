@@ -119,18 +119,18 @@ export default function AssignmentsPage() {
         }
       >
         <div
-          className="mt-2.5 h-1.5 w-56 overflow-hidden rounded-full bg-white/8"
+          className="mt-2.5 h-1.5 w-56 overflow-hidden rounded-full bg-fill-strong"
           role="img"
           aria-label={`${percent} percent of tasks done`}
         >
-          <i className="block h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+          <i className="block h-full rounded-full bg-accent-fill transition-[width] duration-500" style={{ width: `${percent}%` }} />
         </div>
       </PageHeader>
 
       <form
         onSubmit={onQuickAdd}
         aria-label="Add a task"
-        className="mb-4 grid gap-2.5 rounded-2xl border border-line bg-surface p-3 sm:grid-cols-[minmax(0,1fr)_190px_150px_auto] max-sm:grid-cols-2"
+        className="mb-4 grid gap-2.5 rounded-2xl border border-line bg-surface p-3 shadow-card dark:border-transparent sm:grid-cols-[minmax(0,1fr)_190px_150px_auto] max-sm:grid-cols-2"
       >
         <Input
           ref={titleInput}

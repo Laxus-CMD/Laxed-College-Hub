@@ -9,6 +9,7 @@ import AssignmentsPage from '@/features/assignments/AssignmentsPage'
 import GradesPage from '@/features/grades/GradesPage'
 import NotesPage from '@/features/notes/NotesPage'
 import SchedulePage from '@/features/schedule/SchedulePage'
+import { useApplyTheme } from '@/store/useThemeStore'
 
 const PAGES: Record<Route, () => React.JSX.Element> = {
   overview: OverviewPage,
@@ -21,6 +22,7 @@ const PAGES: Record<Route, () => React.JSX.Element> = {
 export default function App() {
   const route = useRoute()
   const Page = PAGES[route]
+  useApplyTheme()
 
   // Press "/" anywhere outside a text field to jump to search.
   useEffect(() => {
@@ -35,11 +37,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Start each page at the top.
+  useEffect(() => {
+    if (window.scrollY > 0) window.scrollTo({ top: 0 })
+  }, [route])
+
   return (
-    <div className="grid min-h-svh lg:grid-cols-[316px_minmax(0,1fr)]">
+    <div className="grid min-h-svh grid-cols-[minmax(0,1fr)] lg:grid-cols-[264px_minmax(0,1fr)]">
       <Sidebar route={route} />
-      <main className="min-w-0 px-4 pt-3 pb-14 lg:py-8 lg:pr-10 lg:pl-9">
-        <div className="max-w-[1160px]">
+      <main className="min-w-0 px-4 pt-4 pb-[calc(96px+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-9 lg:pb-14 xl:px-12">
+        <div key={route} className="mx-auto max-w-[1180px] animate-[fade-in_200ms_ease-out]">
           <Page />
         </div>
       </main>

@@ -45,8 +45,8 @@ export default function OverviewPage() {
         }
       />
       {isDemo && !dismissed ? (
-        <div className="mb-5 flex flex-wrap items-center gap-3.5 rounded-2xl border border-accent/30 bg-accent/15 px-4 py-3">
-          <p className="min-w-56 flex-1">You are looking at sample data. Replace it with your own courses, classes and tasks.</p>
+        <div className="mb-6 flex flex-wrap items-center gap-3.5 rounded-2xl border border-line bg-surface py-3 pr-3 pl-5 shadow-card dark:border-transparent">
+          <p className="min-w-56 flex-1 text-[13.5px] text-muted">You are looking at sample data. Replace it with your own courses, classes and tasks.</p>
           <Button size="sm" variant="primary" onClick={clearAllData}>
             Clear sample data
           </Button>
@@ -55,13 +55,13 @@ export default function OverviewPage() {
           </IconButton>
         </div>
       ) : null}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="flex min-w-0 flex-col gap-5">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-6">
+        <div className="flex min-w-0 flex-col gap-5 xl:gap-6">
           <HeroBanner state={hero} now={now} />
           <UpcomingTasksCard now={now} />
           <WeekLoadCard now={now} />
         </div>
-        <div className="grid min-w-0 items-start gap-5 max-xl:grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] xl:flex xl:flex-col xl:items-stretch">
+        <div className="grid min-w-0 items-start gap-5 max-xl:grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] xl:flex xl:flex-col xl:items-stretch xl:gap-6">
           <TodayCard now={now} />
           <GpaCard />
           <RecentNotesCard />

@@ -94,7 +94,7 @@ export function ClassDrawer({ sessionId }: { sessionId: string }) {
                     close()
                     navigate('notes')
                   }}
-                  className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl bg-canvas px-3 py-2 text-left hover:bg-white/5"
+                  className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl bg-fill px-3 py-2 text-left transition-colors hover:bg-fill-strong"
                 >
                   <span className="truncate text-sm">{n.title || 'Untitled note'}</span>
                   <span className="shrink-0 text-xs text-muted">

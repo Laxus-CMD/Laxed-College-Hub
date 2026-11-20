@@ -34,7 +34,7 @@ export function WeekLoadCard({ now }: { now: Date }) {
           <div key={d.key} className="flex h-full flex-col items-center justify-end gap-1.5">
             <span className={cn('min-h-3 text-xs leading-none', i === 0 ? 'text-accent' : 'text-muted')}>{d.count || ''}</span>
             <div
-              className={cn('w-full max-w-[46px] rounded-t-lg rounded-b-[3px]', i === 0 ? 'bg-accent' : 'bg-white/10')}
+              className={cn('w-full max-w-[46px] rounded-md transition-[height] duration-500 ease-(--ease-apple)', i === 0 ? 'bg-accent-fill' : 'bg-fill-strong')}
               style={{ height: d.count ? 12 + (d.count / max) * 52 : 4 }}
             />
             <span className={cn('text-center text-[11px] leading-tight', i === 0 ? 'text-ink' : 'text-faint')}>

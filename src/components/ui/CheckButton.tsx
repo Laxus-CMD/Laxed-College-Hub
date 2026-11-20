@@ -10,10 +10,10 @@ export function CheckButton({ checked, onChange, label }: { checked: boolean; on
       aria-label={label}
       onClick={onChange}
       className={cn(
-        'grid size-[22px] shrink-0 cursor-pointer place-items-center rounded-[7px] border-[1.5px] transition-colors',
+        'grid size-[22px] shrink-0 cursor-pointer place-items-center rounded-full border-[1.5px] transition-[background-color,border-color,transform] duration-150 active:scale-90',
         checked
-          ? 'border-accent-fill bg-accent-fill text-white'
-          : 'border-line-strong text-transparent hover:border-accent',
+          ? 'border-accent-fill bg-accent-fill text-on-accent'
+          : 'border-faint/60 text-transparent hover:border-accent',
       )}
     >
       <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />

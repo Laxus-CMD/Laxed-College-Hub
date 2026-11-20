@@ -1,25 +1,87 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
-/* Design tokens. One dark theme, tuned for a long study session. */
+/*
+ * Design tokens.
+ *
+ * Every color is a semantic token. Light values live in @theme; the dark theme
+ * overrides the same variables under [data-theme='dark'], so components never
+ * need a `dark:` variant. Tones follow Apple's system palette.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 @theme {
-  --font-sans: 'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --color-canvas: #131315;
-  --color-surface: #1e1e21;
-  --color-raised: #28282c;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI Variable Text', 'Segoe UI',
+    system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  /* Surfaces: canvas < surface (cards) < raised (popovers, thumbs) */
+  --color-canvas: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-raised: #ffffff;
+  --color-sidebar: rgb(255 255 255 / 0.72);
+
+  /* Neutral fills for hovers, tracks and wells */
+  --color-fill: rgb(0 0 0 / 0.04);
+  --color-fill-strong: rgb(0 0 0 / 0.07);
+  --color-line: rgb(0 0 0 / 0.08);
+  --color-line-strong: rgb(0 0 0 / 0.14);
+
+  /* Text */
+  --color-ink: #1d1d1f;
+  --color-muted: #6e6e73;
+  --color-faint: #86868b;
+
+  /* Accent and status. `accent` is for text and tints, `accent-fill` for solid buttons. */
+  --color-accent: #0066cc;
+  --color-accent-fill: #0071e3;
+  --color-accent-hover: #0077ed;
+  --color-on-accent: #ffffff;
+  --color-good: #248a3d;
+  --color-warn: #b25000;
+  --color-bad: #d70015;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 14px rgb(0 0 0 / 0.04);
+  --shadow-pop: 0 4px 12px rgb(0 0 0 / 0.08), 0 18px 48px rgb(0 0 0 / 0.14);
+  --shadow-thumb: 0 1px 2px rgb(0 0 0 / 0.08), 0 2px 6px rgb(0 0 0 / 0.06);
+
+  --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+[data-theme='dark'] {
+  --color-canvas: #000000;
+  --color-surface: #1c1c1e;
+  --color-raised: #2c2c2e;
+  --color-sidebar: rgb(28 28 30 / 0.72);
+
+  --color-fill: rgb(255 255 255 / 0.06);
+  --color-fill-strong: rgb(255 255 255 / 0.1);
   --color-line: rgb(255 255 255 / 0.08);
-  --color-line-strong: rgb(255 255 255 / 0.16);
-  --color-ink: #f3f3f6;
-  --color-muted: #a4a4af;
-  --color-faint: #76767f;
-  --color-accent: #a58bff;
-  --color-accent-fill: #7352ff;
-  --color-good: #5ed6a0;
-  --color-warn: #f2b84b;
-  --color-bad: #ff6f7e;
+  --color-line-strong: rgb(255 255 255 / 0.15);
+
+  --color-ink: #f5f5f7;
+  --color-muted: #a1a1a6;
+  --color-faint: #78787e;
+
+  --color-accent: #2997ff;
+  --color-accent-fill: #0a84ff;
+  --color-accent-hover: #3395ff;
+  --color-on-accent: #ffffff;
+  --color-good: #30d158;
+  --color-warn: #ff9f0a;
+  --color-bad: #ff453a;
+
+  --shadow-card: 0 0 0 0 transparent;
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.4), 0 24px 64px rgb(0 0 0 / 0.5);
+  --shadow-thumb: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 :root {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
   color-scheme: dark;
 }
 
@@ -36,24 +98,23 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Thin accent rail on the left edge, carried over from the first layout. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0 auto 0 8px;
-  width: 2px;
-  background: linear-gradient(180deg, var(--color-accent-fill), var(--color-accent) 55%, transparent);
-  pointer-events: none;
-  z-index: 60;
-}
-
-@media (max-width: 1023px) {
-  body::before {
-    display: none;
-  }
+/* Crossfade colors only while the theme is switching, so normal hovers stay snappy. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition:
+    background-color 240ms var(--ease-apple),
+    border-color 240ms var(--ease-apple),
+    color 240ms var(--ease-apple),
+    fill 240ms var(--ease-apple),
+    stroke 240ms var(--ease-apple) !important;
 }
 
 :focus-visible {
@@ -62,16 +123,53 @@ body::before {
 }
 
 ::selection {
-  background: rgb(115 82 255 / 0.5);
+  background: color-mix(in srgb, var(--color-accent-fill) 28%, transparent);
+}
+
+/* Quiet scrollbars, like macOS overlay scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 
 @keyframes flash {
   0%,
   40% {
-    background: rgb(165 139 255 / 0.16);
+    background: color-mix(in srgb, var(--color-accent-fill) 14%, transparent);
   }
   100% {
     background: transparent;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

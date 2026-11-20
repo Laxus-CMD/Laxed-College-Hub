@@ -34,20 +34,20 @@ export function ClockFace({ now, arc, className }: ClockFaceProps) {
 
   return (
     <svg viewBox="0 0 240 240" aria-hidden="true" className={className}>
-      <circle cx={CX} cy={CY} r={104} fill="none" stroke="rgb(0 0 0 / 0.26)" strokeWidth={12} />
+      <circle cx={CX} cy={CY} r={104} fill="none" stroke="currentColor" strokeOpacity={0.06} strokeWidth={12} />
       {Array.from({ length: 12 }, (_, i) => {
         const [x1, y1] = point(i * 30, 88)
         const [x2, y2] = point(i * 30, i % 3 === 0 ? 76 : 82)
         return (
-          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgb(0 0 0 / 0.28)" strokeWidth={4} strokeLinecap="round" />
+          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeOpacity={0.14} strokeWidth={4} strokeLinecap="round" />
         )
       })}
       {arcPath ? (
-        <path d={arcPath} fill="none" stroke="#a58bff" strokeWidth={12} strokeLinecap="round" opacity={0.85} />
+        <path d={arcPath} fill="none" stroke="var(--color-accent-fill)" strokeWidth={12} strokeLinecap="round" opacity={0.9} />
       ) : null}
-      <line x1={CX} y1={CY} x2={hour[0]} y2={hour[1]} stroke="rgb(0 0 0 / 0.34)" strokeWidth={11} strokeLinecap="round" />
-      <line x1={CX} y1={CY} x2={minute[0]} y2={minute[1]} stroke="rgb(0 0 0 / 0.34)" strokeWidth={8} strokeLinecap="round" />
-      <circle cx={CX} cy={CY} r={9} fill="rgb(0 0 0 / 0.4)" />
+      <line x1={CX} y1={CY} x2={hour[0]} y2={hour[1]} stroke="currentColor" strokeOpacity={0.2} strokeWidth={11} strokeLinecap="round" />
+      <line x1={CX} y1={CY} x2={minute[0]} y2={minute[1]} stroke="currentColor" strokeOpacity={0.2} strokeWidth={8} strokeLinecap="round" />
+      <circle cx={CX} cy={CY} r={9} fill="currentColor" fillOpacity={0.24} />
     </svg>
   )
 }

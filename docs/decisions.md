@@ -30,3 +30,4 @@ Add new entries below as the project grows. Format: date, decision, reason.
 | 2026-10-29 | One Zustand store per concern, saved with `persist` through a storage wrapper that never throws. | The app keeps working when the browser blocks storage. |
 | 2026-10-29 | Deleting a course removes its classes and grade components. Its tasks and notes stay, with no course. | Deadlines and notes are worth more than the course label. Every delete has an Undo. |
 | 2026-10-29 | One dark theme, tuned for long study sessions. | Matches the first layout and avoids maintaining two palettes. |
+| 2026-11-20 | Light and dark themes, plus System that follows the OS. Supersedes "One dark theme". Colors are semantic CSS variables that the dark theme overrides. | A light option suits daytime use and matches the Apple-style redesign. One token set keeps both themes consistent without `dark:` variants in every component. |

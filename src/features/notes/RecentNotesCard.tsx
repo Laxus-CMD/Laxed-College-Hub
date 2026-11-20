@@ -36,7 +36,7 @@ export function RecentNotesCard() {
                     selectNote(n.id)
                     navigate('notes')
                   }}
-                  className="flex w-full cursor-pointer flex-col gap-1 rounded-xl bg-canvas px-3.5 py-2.5 text-left hover:bg-white/5"
+                  className="flex w-full cursor-pointer flex-col gap-1 rounded-xl bg-fill px-3.5 py-2.5 text-left transition-colors hover:bg-fill-strong"
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{n.title || 'Untitled note'}</span>

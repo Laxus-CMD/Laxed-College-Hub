@@ -88,8 +88,7 @@ export function CourseDialog({ id }: { id?: string }) {
         <div className="mt-1 flex flex-wrap items-center gap-2.5">
           {existing ? (
             <Button
-              variant="danger"
-              className={armed ? 'bg-bad text-[#1a0b0e] hover:bg-bad' : ''}
+              variant={armed ? 'destructive' : 'danger'}
               onClick={() => {
                 if (!armed) {
                   setArmed(true)

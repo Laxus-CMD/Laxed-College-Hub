@@ -113,7 +113,7 @@ function NoteEditor({ note }: { note: Note }) {
           onChange={(e) => updateNote(note.id, { body: e.target.value })}
         />
       ) : (
-        <div className="min-h-[340px] rounded-xl border border-line bg-canvas px-4 py-3.5">
+        <div className="min-h-[340px] rounded-xl border border-line bg-fill px-4 py-3.5">
           <Markdown source={note.body} />
         </div>
       )}
@@ -208,7 +208,7 @@ export default function NotesPage() {
                       onClick={() => selectNote(n.id)}
                       className={cn(
                         'flex w-full cursor-pointer flex-col gap-1.5 rounded-2xl border px-4 py-3 text-left transition-colors',
-                        isActive ? 'border-accent/50 bg-accent/10' : 'border-line bg-surface hover:border-line-strong',
+                        isActive ? 'border-accent/40 bg-accent/10' : 'border-line bg-surface shadow-card hover:border-line-strong dark:border-transparent dark:hover:bg-raised',
                       )}
                     >
                       <span className="truncate font-medium">{n.title || 'Untitled note'}</span>
