@@ -2,6 +2,7 @@ import express from 'express'
 import helmet from 'helmet'
 import type { Config } from './config.ts'
 import type { Db } from './db.ts'
+import { googleVerifier, type GoogleVerifier } from './google.ts'
 import { csrfGuard, errorHandler, HttpError, httpsOnly, loadSession } from './http.ts'
 import { adminRoutes } from './routes/admin.ts'
 import { authRoutes, DEFAULT_LIMITS, type AuthLimits } from './routes/auth.ts'
@@ -16,7 +17,13 @@ export const consoleLogger: Logger = {
   error: (msg, err) => console.error(`[api] ${msg}`, err),
 }
 
-export function createApp(db: Db, config: Config, log: Logger = consoleLogger, limits: AuthLimits = DEFAULT_LIMITS) {
+export function createApp(
+  db: Db,
+  config: Config,
+  log: Logger = consoleLogger,
+  limits: AuthLimits = DEFAULT_LIMITS,
+  google: GoogleVerifier | null = config.GOOGLE_CLIENT_ID ? googleVerifier(config.GOOGLE_CLIENT_ID) : null,
+) {
   const app = express()
   app.disable('x-powered-by')
   app.set('trust proxy', config.TRUST_PROXY)
@@ -53,7 +60,7 @@ export function createApp(db: Db, config: Config, log: Logger = consoleLogger, l
   })
 
   app.use('/api', express.json({ limit: '10kb' }), csrfGuard(config), loadSession(db, config))
-  app.use('/api/auth', authRoutes(db, config, limits))
+  app.use('/api/auth', authRoutes(db, config, limits, google))
   app.use('/api/admin', adminRoutes(db))
   app.use('/api', () => {
     throw new HttpError(404, 'Not found.')

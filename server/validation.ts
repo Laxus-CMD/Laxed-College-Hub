@@ -49,6 +49,14 @@ export const changePasswordBody = z.strictObject({
   newPassword: password,
 })
 
+export const googleBody = z.strictObject({ credential: z.string().min(20).max(4096) })
+
+/** Deleting an account needs the password, or the typed email for accounts that only use Google. */
+export const deleteAccountBody = z.strictObject({
+  password: z.string().max(128).optional(),
+  email: z.string().trim().toLowerCase().max(254).optional(),
+})
+
 export const role = z.enum(['admin', 'user'])
 
 export const updateUserBody = z

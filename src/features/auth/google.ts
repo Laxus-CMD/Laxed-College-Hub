@@ -1,19 +1,7 @@
 /**
- * Sign in with Google, using Google Identity Services (GIS) in the browser.
- *
- * There is no backend, so the ID token is decoded here only to read the
- * profile (name, email, picture). It is not a security boundary: all data
- * stays in this browser either way.
+ * Loads Google Identity Services (GIS) for the sign-in button. Google gives the
+ * browser an ID token, and the College Hub server checks it (server/google.ts).
  */
-
-export interface GoogleUser {
-  /** Google's stable account id (the token's `sub`). */
-  id: string
-  name: string
-  givenName: string
-  email: string
-  picture?: string
-}
 
 /** Public OAuth client id. Set VITE_GOOGLE_CLIENT_ID in .env.local (see .env.example). */
 export const GOOGLE_CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
@@ -71,38 +59,4 @@ export function loadGoogleIdentity(): Promise<GoogleIdApi> {
     throw err
   })
   return loading
-}
-
-function decodeBase64Url(part: string): string {
-  const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')
-  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
-}
-
-/**
- * Reads the profile out of a Google ID token (a JWT).
- * Returns null when the token is malformed, expired or for another app.
- */
-export function parseGoogleCredential(credential: string, clientId: string, now: number = Date.now()): GoogleUser | null {
-  const parts = credential.split('.')
-  if (parts.length !== 3) return null
-  let claims: Record<string, unknown>
-  try {
-    claims = JSON.parse(decodeBase64Url(parts[1]!)) as Record<string, unknown>
-  } catch {
-    return null
-  }
-  const { sub, email, name, given_name, picture, aud, exp, iss } = claims
-  if (typeof sub !== 'string' || typeof email !== 'string') return null
-  if (clientId && aud !== clientId) return null
-  if (iss !== 'accounts.google.com' && iss !== 'https://accounts.google.com') return null
-  if (typeof exp === 'number' && exp * 1000 < now) return null
-  const fullName = typeof name === 'string' && name ? name : email
-  return {
-    id: sub,
-    email,
-    name: fullName,
-    givenName: typeof given_name === 'string' && given_name ? given_name : fullName.split(' ')[0]!,
-    picture: typeof picture === 'string' ? picture : undefined,
-  }
 }

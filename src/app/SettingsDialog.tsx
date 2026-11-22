@@ -50,7 +50,7 @@ export function SettingsDialog() {
               {account?.role === 'admin' ? ' · Admin' : ''}
             </p>
           </div>
-          {account ? (
+          {account?.hasPassword ? (
             <Button size="sm" variant="subtle" onClick={() => openDialog({ type: 'password' })}>
               Password
             </Button>
@@ -71,7 +71,7 @@ export function SettingsDialog() {
         </Label>
         <p className="text-[13px] text-muted">
           Courses, classes, tasks, notes and grades are saved in this browser on this device and are not sent anywhere.
-          {account ? ' Your account name, email and role are stored on the College Hub server.' : ''}{' '}
+          {account ? ' Your account details (name, email, photo link and role) are stored on the College Hub server.' : ''}{' '}
           <a href={PRIVACY_URL} className="text-accent underline-offset-2 hover:underline">
             Privacy Policy
           </a>
@@ -92,6 +92,11 @@ export function SettingsDialog() {
           <Button size="sm" variant={armed === 'restore' ? 'destructive' : 'ghost'} onClick={() => confirm('restore')}>
             {armed === 'restore' ? 'Click again to restore' : 'Restore sample data'}
           </Button>
+          {account ? (
+            <Button size="sm" variant="danger" onClick={() => openDialog({ type: 'delete-account' })}>
+              Delete account
+            </Button>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="flex-1" />

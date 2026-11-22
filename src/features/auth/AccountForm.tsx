@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Input, Label } from '@/components/ui/Field'
 import { accountsApi, ApiError } from '@/features/auth/api'
 import { cn } from '@/lib/cn'
@@ -17,9 +17,8 @@ function Hint({ id, error, hint }: { id: string; error?: string; hint?: string }
   )
 }
 
-/** Email and password sign-in and sign-up against the College Hub API. */
-export function AccountForm() {
-  const [available, setAvailable] = useState<boolean | null>(null)
+/** Email and password sign-in, plus sign-up when the server allows it. */
+export function AccountForm({ ready, allowSignup }: { ready: boolean; allowSignup: boolean }) {
   const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -27,24 +26,6 @@ export function AccountForm() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fields, setFields] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    let cancelled = false
-    accountsApi.health().then((ok) => {
-      if (!cancelled) setAvailable(ok)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  if (available === false) {
-    return (
-      <p role="note" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-muted">
-        Email sign-in is offline right now. You can still use Google or continue without an account.
-      </p>
-    )
-  }
 
   const switchMode = (next: Mode) => {
     setMode(next)
@@ -81,23 +62,25 @@ export function AccountForm() {
 
   return (
     <form aria-label={signup ? 'Create an account' : 'Sign in with email'} onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
-      <div role="tablist" aria-label="Account" className="grid grid-cols-2 rounded-full bg-fill p-0.5 text-[13px] font-medium">
-        {(['login', 'signup'] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="tab"
-            aria-selected={mode === m}
-            onClick={() => switchMode(m)}
-            className={cn(
-              'h-8 cursor-pointer rounded-full transition-colors',
-              mode === m ? 'bg-surface text-ink shadow-thumb' : 'text-muted hover:text-ink',
-            )}
-          >
-            {m === 'login' ? 'Sign in' : 'Create account'}
-          </button>
-        ))}
-      </div>
+      {allowSignup ? (
+        <div role="tablist" aria-label="Account" className="grid grid-cols-2 rounded-full bg-fill p-0.5 text-[13px] font-medium">
+          {(['login', 'signup'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => switchMode(m)}
+              className={cn(
+                'h-8 cursor-pointer rounded-full transition-colors',
+                mode === m ? 'bg-surface text-ink shadow-thumb' : 'text-muted hover:text-ink',
+              )}
+            >
+              {m === 'login' ? 'Sign in' : 'Create account'}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {signup ? (
         <div className="flex flex-col gap-1.5">
@@ -163,7 +146,7 @@ export function AccountForm() {
 
       <button
         type="submit"
-        disabled={busy || available === null}
+        disabled={busy || !ready}
         className="h-10 cursor-pointer rounded-full bg-accent-fill text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-50"
       >
         {busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}

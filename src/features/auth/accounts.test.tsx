@@ -14,6 +14,9 @@ const ADMIN: Account = {
   isActive: true,
   lastLoginAt: null,
   createdAt: '2026-11-01T00:00:00.000Z',
+  picture: null,
+  hasPassword: true,
+  hasGoogle: false,
 }
 const STUDENT: Account = { ...ADMIN, id: '00000000-0000-4000-8000-000000000002', email: 'student@collegehub.test', name: 'Test Student', role: 'user' }
 
@@ -35,11 +38,11 @@ function mockApi(routes: Record<string, Handler>) {
   return calls
 }
 
-const health: Record<string, Handler> = { 'GET /api/health': () => [200, { ok: true }] }
+const options: Record<string, Handler> = { 'GET /api/auth/options': () => [200, { emailSignup: true, google: true }] }
 
 beforeEach(() => {
   resetStores(new Date(2026, 9, 26, 8, 45))
-  useAuthStore.setState({ user: null, account: null, guest: false })
+  useAuthStore.setState({ account: null, guest: false })
 })
 
 afterEach(() => {
@@ -49,7 +52,7 @@ afterEach(() => {
 describe('email accounts', () => {
   it('signs in an admin, who sees the Admin page', async () => {
     mockApi({
-      ...health,
+      ...options,
       'POST /api/auth/login': () => [200, { user: ADMIN }],
       'GET /api/auth/me': () => [200, { user: ADMIN }],
       'GET /api/admin/users': () => [200, { users: [ADMIN, STUDENT], total: 2 }],
@@ -69,7 +72,7 @@ describe('email accounts', () => {
   })
 
   it('hides the Admin page from regular users, even by URL', async () => {
-    mockApi({ ...health, 'GET /api/auth/me': () => [200, { user: STUDENT }] })
+    mockApi({ ...options, 'GET /api/auth/me': () => [200, { user: STUDENT }] })
     useAuthStore.setState({ account: STUDENT })
     window.location.hash = 'admin'
     render(<App />)
@@ -79,7 +82,7 @@ describe('email accounts', () => {
 
   it('shows field errors from sign-up', async () => {
     mockApi({
-      ...health,
+      ...options,
       'POST /api/auth/signup': () => [400, { error: 'Check the highlighted fields.', fields: { password: 'Password must be at least 10 characters.' } }],
     })
     const u = userEvent.setup()
@@ -95,7 +98,7 @@ describe('email accounts', () => {
   })
 
   it('signs out when the server says the session ended', async () => {
-    mockApi({ ...health, 'GET /api/auth/me': () => [401, { error: 'Please sign in.' }], 'POST /api/auth/logout': () => [204, null] })
+    mockApi({ ...options, 'GET /api/auth/me': () => [401, { error: 'Please sign in.' }], 'POST /api/auth/logout': () => [204, null] })
     useAuthStore.setState({ account: STUDENT })
     render(<App />)
     expect(await screen.findByRole('form', { name: 'Sign in with email' })).toBeInTheDocument()
@@ -104,7 +107,47 @@ describe('email accounts', () => {
   it('says so when the accounts API is offline', async () => {
     mockApi({})
     render(<App />)
-    expect(await screen.findByText(/Email sign-in is offline/)).toBeInTheDocument()
+    expect(await screen.findByText(/Sign-in is offline/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue without an account' })).toBeInTheDocument()
+  })
+
+  it('hides account creation when the server has email sign-up off', async () => {
+    mockApi({ 'GET /api/auth/options': () => [200, { emailSignup: false, google: true }] })
+    render(<App />)
+    const form = await screen.findByRole('form', { name: 'Sign in with email' })
+    expect(within(form).queryByRole('tab')).not.toBeInTheDocument()
+  })
+
+  it('drops a Google profile saved by an older version, so the server can check it', async () => {
+    const saved = { state: { user: { id: '1', name: 'Old', email: 'old@gmail.com' }, account: null, guest: false }, version: 1 }
+    localStorage.setItem('college-hub.auth', JSON.stringify(saved))
+    await useAuthStore.persist.rehydrate()
+    expect(useAuthStore.getState()).toMatchObject({ account: null, guest: false })
+    expect(localStorage.getItem('college-hub.auth')).not.toContain('old@gmail.com')
+  })
+
+  it('deletes a Google account after the email is typed', async () => {
+    const google = { ...STUDENT, hasPassword: false, hasGoogle: true }
+    let sent: unknown
+    const calls = mockApi({
+      ...options,
+      'GET /api/auth/me': () => [200, { user: google }],
+      'POST /api/auth/delete': (body) => {
+        sent = body
+        return [204, null]
+      },
+    })
+    useAuthStore.setState({ account: google })
+    const u = userEvent.setup()
+    render(<App />)
+    await u.click(screen.getAllByRole('button', { name: 'Your data' })[0]!)
+    expect(screen.queryByRole('button', { name: 'Password' })).not.toBeInTheDocument()
+    await u.click(await screen.findByRole('button', { name: 'Delete account' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete account' })
+    await u.type(within(dialog).getByLabelText(/Type student@collegehub.test/), google.email)
+    await u.click(within(dialog).getByRole('button', { name: 'Delete account' }))
+    expect(await screen.findByRole('button', { name: 'Continue without an account' })).toBeInTheDocument()
+    expect(sent).toEqual({ email: google.email })
+    expect(calls).not.toContain('POST /api/auth/logout')
   })
 })

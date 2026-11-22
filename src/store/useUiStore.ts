@@ -12,6 +12,7 @@ export type DialogState =
     }
   | { type: 'settings' }
   | { type: 'password' }
+  | { type: 'delete-account' }
   | { type: 'ics' }
 
 export interface Toast {

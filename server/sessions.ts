@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import type { Db } from './db.ts'
+import type { Db, Queryable } from './db.ts'
 
 /**
  * Server-side sessions. The browser holds a random 256-bit token in an
@@ -73,7 +73,7 @@ export async function deleteSession(db: Db, token: string): Promise<void> {
 }
 
 /** Signs a user out everywhere, optionally keeping the current session. */
-export async function deleteUserSessions(db: Db, userId: string, keepToken?: string): Promise<void> {
+export async function deleteUserSessions(db: Queryable, userId: string, keepToken?: string): Promise<void> {
   await db.query('DELETE FROM sessions WHERE user_id = $1 AND id <> $2', [userId, keepToken ? hashToken(keepToken) : ''])
 }
 

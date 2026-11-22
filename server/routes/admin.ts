@@ -2,7 +2,7 @@ import { Router } from 'express'
 import type { Db } from '../db.ts'
 import { HttpError, requireRole } from '../http.ts'
 import { deleteUserSessions } from '../sessions.ts'
-import { audit, findUserById, publicUser, ROLE_IDS, type UserRow } from '../users.ts'
+import { audit, findUserById, publicUser, ROLE_IDS, SIGN_IN_COLUMNS, type UserRow } from '../users.ts'
 import { fieldErrors, listUsersQuery, updateUserBody, userId } from '../validation.ts'
 
 /** Everything here is admin-only. */
@@ -17,7 +17,7 @@ export function adminRoutes(db: Db): Router {
     // Escape LIKE wildcards so a search for "_" or "%" matches literally.
     const pattern = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null
     const { rows } = await db.query<UserRow & { total: number }>(
-      `SELECT u.id, u.email, u.name, r.name AS role, u.is_active, u.last_login_at, u.created_at,
+      `SELECT u.id, u.email, u.name, r.name AS role, u.is_active, u.last_login_at, u.created_at, ${SIGN_IN_COLUMNS},
               count(*) OVER ()::int AS total
          FROM users u JOIN roles r ON r.id = u.role_id
         WHERE $1::text IS NULL OR u.email ILIKE $1 OR u.name ILIKE $1

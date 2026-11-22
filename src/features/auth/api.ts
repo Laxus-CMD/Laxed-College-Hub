@@ -14,6 +14,15 @@ export interface Account {
   isActive: boolean
   lastLoginAt: string | null
   createdAt: string
+  picture: string | null
+  hasPassword: boolean
+  hasGoogle: boolean
+}
+
+/** Which ways to sign in the server offers. */
+export interface SignInOptions {
+  emailSignup: boolean
+  google: boolean
 }
 
 export interface AuditEvent {
@@ -57,12 +66,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const accountsApi = {
-  /** True when the API is up. Used to show or hide email sign-in. */
-  health: () =>
-    request<{ ok: boolean }>('GET', '/health').then(
-      (r) => r.ok,
-      () => false,
-    ),
+  /** Null when the server cannot be reached (or this site has none, like the GitHub Pages mirror). */
+  options: () => request<SignInOptions>('GET', '/auth/options').catch(() => null),
+  /** `credential` is the ID token from Google. The server checks it. */
+  google: (credential: string) => request<{ user: Account; passwordRemoved: boolean }>('POST', '/auth/google', { credential }),
+  deleteAccount: (body: { password: string } | { email: string }) => request<void>('POST', '/auth/delete', body),
   signup: (body: { name: string; email: string; password: string }) =>
     request<{ user: Account }>('POST', '/auth/signup', body).then((r) => r.user),
   login: (body: { email: string; password: string }) => request<{ user: Account }>('POST', '/auth/login', body).then((r) => r.user),

@@ -30,12 +30,21 @@ const schema = z.object({
   FORCE_HTTPS: bool,
   /** Create the test accounts on startup. Defaults on outside production, never in production. */
   SEED_TEST_ACCOUNTS: bool,
+  /** The OAuth web client that Google ID tokens must be issued for. Public, and the same one the browser uses. */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  VITE_GOOGLE_CLIENT_ID: z.string().optional(),
+  /**
+   * Let people create accounts with an email and password. Off by default in production until
+   * email verification and password reset exist. Existing accounts can still sign in.
+   */
+  EMAIL_SIGNUP: bool,
 })
 
-export type Config = Omit<z.infer<typeof schema>, 'APP_ORIGIN' | 'FORCE_HTTPS' | 'SEED_TEST_ACCOUNTS'> & {
+export type Config = Omit<z.infer<typeof schema>, 'APP_ORIGIN' | 'FORCE_HTTPS' | 'SEED_TEST_ACCOUNTS' | 'EMAIL_SIGNUP' | 'VITE_GOOGLE_CLIENT_ID'> & {
   APP_ORIGINS: string[]
   FORCE_HTTPS: boolean
   SEED_TEST_ACCOUNTS: boolean
+  EMAIL_SIGNUP: boolean
   isProduction: boolean
   HOST: string
 }
@@ -70,6 +79,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     APP_ORIGINS,
     FORCE_HTTPS: c.FORCE_HTTPS ?? isProduction,
     SEED_TEST_ACCOUNTS: c.SEED_TEST_ACCOUNTS ?? !isProduction,
+    EMAIL_SIGNUP: c.EMAIL_SIGNUP ?? !isProduction,
+    GOOGLE_CLIENT_ID: c.GOOGLE_CLIENT_ID || c.VITE_GOOGLE_CLIENT_ID || undefined,
     isProduction,
   }
 }

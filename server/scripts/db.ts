@@ -39,6 +39,8 @@ try {
     } else {
       const password = passwordRule.parse(process.env.ADMIN_PASSWORD)
       const user = await insertUser(db, { email, name, role: 'admin', passwordHash: await hashPassword(password, scrypt) })
+      // Whoever runs this vouches for the address, so Google can be linked later without dropping the password.
+      await db.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [user!.id])
       await audit(db, { action: 'cli.create_admin', targetId: user!.id })
       console.log(`Created admin ${email}.`)
     }

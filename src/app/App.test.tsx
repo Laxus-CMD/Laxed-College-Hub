@@ -109,7 +109,7 @@ describe('Navigation and search', () => {
 
 describe('Sign in', () => {
   it('shows the login page when signed out and lets a guest in', async () => {
-    useAuthStore.setState({ user: null, guest: false })
+    useAuthStore.setState({ account: null, guest: false })
     const u = user()
     render(<App />)
     expect(screen.getByRole('heading', { level: 1, name: 'College Hub' })).toBeInTheDocument()
