@@ -18,6 +18,9 @@ export interface SessionUser {
   createdAt: string
 }
 
+/** Devices signed in at once. Signing in on one more ends the one unused the longest. */
+export const MAX_SESSIONS = 10
+
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
 
 export async function createSession(
@@ -34,6 +37,11 @@ export async function createSession(
     ip ?? null,
     userAgent?.slice(0, 300) ?? null,
   ])
+  await db.query(
+    `DELETE FROM sessions WHERE id IN (
+       SELECT id FROM sessions WHERE user_id = $1 AND id <> $2 ORDER BY last_seen_at DESC, created_at DESC OFFSET $3)`,
+    [userId, hashToken(token), MAX_SESSIONS - 1],
+  )
   return { token, expiresAt }
 }
 

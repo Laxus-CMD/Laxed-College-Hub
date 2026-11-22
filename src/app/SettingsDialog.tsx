@@ -4,6 +4,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Input, Label } from '@/components/ui/Field'
 import { ThemeSegmented } from '@/app/ThemeToggle'
 import { Avatar } from '@/features/auth/Avatar'
+import { accountsApi } from '@/features/auth/api'
 import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { clearAllData, loadDemoData } from '@/store/actions'
 import { useAuthStore, useProfile } from '@/store/useAuthStore'
@@ -24,9 +25,11 @@ export function SettingsDialog() {
   const openAppearance = useUiStore((s) => s.openAppearance)
   const openDialog = useUiStore((s) => s.openDialog)
   const signOut = useAuthStore((s) => s.signOut)
+  const endedOnServer = useAuthStore((s) => s.endedOnServer)
   const [draft, setDraft] = useState(name)
   const [armed, setArmed] = useState<'clear' | 'restore' | null>(null)
   const [leaving, setLeaving] = useState<'saving' | 'unsaved' | null>(null)
+  const [everywhere, setEverywhere] = useState<{ busy?: boolean; error?: string }>({})
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -46,6 +49,23 @@ export function SettingsDialog() {
     sync.discard()
     close()
     signOut()
+  }
+
+  const onSignOutEverywhere = async () => {
+    setEverywhere({ busy: true })
+    if (!(await sync.flush())) {
+      setEverywhere({ error: 'Your latest changes are not saved yet, so you are still signed in. Try again in a moment.' })
+      return
+    }
+    try {
+      await accountsApi.logoutAll()
+    } catch {
+      setEverywhere({ error: 'That did not work, so nothing was signed out. Check your connection and try again.' })
+      return
+    }
+    sync.discard()
+    close()
+    endedOnServer()
   }
 
   const confirm = (kind: 'clear' | 'restore') => {
@@ -135,11 +155,21 @@ export function SettingsDialog() {
             {armed === 'restore' ? 'Click again to restore' : 'Restore sample data'}
           </Button>
           {account ? (
+            <Button size="sm" disabled={everywhere.busy || leaving === 'saving'} onClick={() => void onSignOutEverywhere()}>
+              {everywhere.busy ? 'Signing out…' : 'Sign out on all devices'}
+            </Button>
+          ) : null}
+          {account ? (
             <Button size="sm" variant="danger" onClick={() => openDialog({ type: 'delete-account' })}>
               Delete account
             </Button>
           ) : null}
         </div>
+        {everywhere.error ? (
+          <p role="alert" className="text-[13px] text-bad">
+            {everywhere.error}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="flex-1" />
           <Button onClick={close}>Cancel</Button>

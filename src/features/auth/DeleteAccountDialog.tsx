@@ -26,7 +26,7 @@ export function DeleteAccountDialog() {
       await accountsApi.deleteAccount(byPassword ? { password: value } : { email: value })
       close()
       sync.discard()
-      useAuthStore.getState().accountDeleted()
+      useAuthStore.getState().endedOnServer()
     } catch (err) {
       const field = err instanceof ApiError ? (err.fields.password ?? err.fields.email) : undefined
       setError(field ?? (err instanceof Error ? err.message : 'Something went wrong.'))

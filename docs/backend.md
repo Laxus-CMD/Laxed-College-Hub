@@ -46,6 +46,8 @@ Open the app and sign in with a test account (see [Test accounts](#3-test-accoun
   - logout
   - `SESSION_IDLE_HOURS` (24) without a request
   - `SESSION_TTL_HOURS` (168) after login
+  - **Sign out on all devices**
+  - signing in on an 11th device, which ends the session unused the longest
   - a password change, which signs out every other device
   - an admin changing the user's role or disabling them, which signs out all of their devices
 - Each login issues a new token, which prevents session fixation. An hourly job deletes expired rows.
@@ -87,7 +89,9 @@ Wrong password, unknown email and disabled account all get the same message: "In
   - HSTS for 2 years in production
   - `Cache-Control: no-store`
   - no `X-Powered-By`
-  - the static site cannot be framed (`frame-ancestors 'none'`), set in `scripts/build-vercel.ts`
+- **Site headers** (`scripts/siteHeaders.ts`): a Content Security Policy that only runs the site's own scripts, the exact inline scripts (by hash) and Google sign-in, and only connects to the site and Google. No framing, HSTS, `nosniff`. A new outside service must be added there, or the browser blocks it.
+- **Nothing private in the browser:** `npm run build` fails when the built site holds a known kind of secret, the value of a private environment variable, a source map, or when there is a `VITE_` variable that is not on the list (`scripts/secrets.ts`). `tests/security.test.ts` scans every tracked file. The Google **client id** is public by design. There is no Google client secret in this app.
+- **Database connection:** always `sslmode=verify-full` on Vercel, whatever the connection string says.
 - **Audit log:** sign-ups, logins, failed logins, password changes and admin edits go to `audit_log`. Admins see them on the Admin page. Entries are deleted after 90 days.
 - **Request logs** record the method, path, status and time only. They never include bodies, cookies or query strings.
 

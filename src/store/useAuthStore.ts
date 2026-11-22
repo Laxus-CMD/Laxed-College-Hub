@@ -14,8 +14,8 @@ interface AuthState {
   signInAccount: (account: Account) => void
   continueAsGuest: () => void
   signOut: () => void
-  /** The account is already gone on the server. */
-  accountDeleted: () => void
+  /** The server has already ended the session, or deleted the account. */
+  endedOnServer: () => void
   /** The server no longer accepts this session. */
   sessionEnded: () => void
 }
@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthState>()(
         if (get().account) accountsApi.logout().catch(() => {})
         set({ account: null, guest: false })
       },
-      accountDeleted: () => {
+      endedOnServer: () => {
         window.google?.accounts?.id?.disableAutoSelect()
         set({ account: null, guest: false })
       },
