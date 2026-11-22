@@ -15,6 +15,7 @@ import SchedulePage from '@/features/schedule/SchedulePage'
 import { useAuthStore, useIsAdmin, useIsSignedIn } from '@/store/useAuthStore'
 import { useApplyTheme } from '@/store/useThemeStore'
 import { sync } from '@/sync/engine'
+import { ImportOffer } from '@/sync/ImportDialog'
 import { SyncAlert, SyncGate } from '@/sync/SyncGate'
 import { useSyncStore } from '@/sync/useSyncStore'
 
@@ -89,6 +90,7 @@ export default function App() {
           <Page />
         </div>
       </main>
+      <ImportOffer />
       <DialogHost />
       <ToastHost />
     </div>

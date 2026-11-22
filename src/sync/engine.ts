@@ -231,9 +231,31 @@ export class SyncEngine {
 
   /** Saves now and waits. True when everything is safely on the server. */
   async flush(): Promise<boolean> {
+    const open = this.open_
+    if (!open) return false
     // A save that was already on its way may not have the latest edits, so go around once more.
-    for (let i = 0; i < 2 && this.open_; i++) await this.save()
-    return !this.hasUnsaved()
+    for (let i = 0; i < 2 && this.open_ === open; i++) await this.save()
+    // If the session ended meanwhile, nothing was confirmed.
+    return this.open_ === open && this.saving === null && docsEqual(open.base, readStores())
+  }
+
+  /**
+   * Adds an import, all or nothing. If the account cannot take it, for example because it
+   * would be full, everything goes back to how it was.
+   */
+  async addAll(doc: Doc): Promise<'saved' | 'pending' | { error: string }> {
+    // Anything unsaved goes first, so a refusal is about the import alone.
+    if (!(await this.flush()) || !this.open_) return { error: 'Your latest changes are not saved yet. Try again once they are.' }
+    const before = readStores()
+    const epoch = this.epoch
+    this.fillStores(doc)
+    useSyncStore.setState({ status: 'unsaved' })
+    if (await this.flush()) return 'saved'
+    const { status, message } = useSyncStore.getState()
+    if (epoch !== this.epoch || status !== 'blocked') return 'pending'
+    this.fillStores(before)
+    this.settled()
+    return { error: message ?? 'Your account could not take this.' }
   }
 
   retryNow(): Promise<void> {

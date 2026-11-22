@@ -7,6 +7,7 @@ import { SettingsDialog } from '@/app/SettingsDialog'
 import { DeleteAccountDialog } from '@/features/auth/DeleteAccountDialog'
 import { PasswordDialog } from '@/features/auth/PasswordDialog'
 import { useUiStore } from '@/store/useUiStore'
+import { ImportDialog } from '@/sync/ImportDialog'
 
 /** Renders whichever dialog or drawer is open. State lives in the UI store so any page can open them. */
 export function DialogHost() {
@@ -23,6 +24,7 @@ export function DialogHost() {
       ) : null}
       {dialog?.type === 'settings' ? <SettingsDialog /> : null}
       {dialog?.type === 'ics' ? <IcsDialog /> : null}
+      {dialog?.type === 'import' ? <ImportDialog /> : null}
       {dialog?.type === 'password' ? <PasswordDialog /> : null}
       {dialog?.type === 'delete-account' ? <DeleteAccountDialog /> : null}
     </>

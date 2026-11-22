@@ -17,7 +17,8 @@ import { useScheduleStore } from '@/store/useScheduleStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
-import { readStores } from '@/sync/doc'
+import { mergeImport, readDeviceDoc } from '@/sync/deviceData'
+import { cleanDoc, readStores } from '@/sync/doc'
 import { SyncEngine } from '@/sync/engine'
 import { CLOSED, useSyncStore } from '@/sync/useSyncStore'
 
@@ -608,7 +609,8 @@ describe('accounts and the browser', () => {
     await save
     expect(titles()).toEqual([])
     addTask('B task')
-    expect(await e.flush()).toBe(false) // A's task is still held for A.
+    expect(await e.flush()).toBe(true)
+    expect(e.hasUnsaved()).toBe(true) // A's task is still held for A.
     expect((await stored()).tasks.map((t: any) => t.title)).toEqual(['B task'])
   })
 
@@ -689,5 +691,76 @@ describe('accounts and the browser', () => {
     await new Promise((r) => setTimeout(r, 50))
     expect(useSyncStore.getState().phase).toBe('closed')
     expect(titles()).not.toContain('A task')
+  })
+})
+
+describe('importing', () => {
+  /** A guest with a full term in this browser, who then signs in. */
+  async function guestThenAccount() {
+    useAuthStore.setState({ account: null, guest: true })
+    loadDemoData()
+    useSettingsStore.getState().setDemo(false)
+    useGradeStore.getState().setTarget('c-cs101', 4)
+    const guest = readStores()
+    const a = await signUp()
+    const e = await startApp(a)
+    await e.flush()
+    return { a, e, guest }
+  }
+  const importAll = (e: SyncEngine) => e.addAll(mergeImport(readStores(), readDeviceDoc()!).doc)
+
+  it('puts everything from the browser on the server', async () => {
+    const { e, guest } = await guestThenAccount()
+    expect(await importAll(e)).toBe('saved')
+    expect(status()).toBe('saved')
+    const data = await stored()
+    const onServer = cleanDoc({ ...data, profile: data.profile })
+    for (const k of ['courses', 'sessions', 'tasks', 'components'] as const) expect(onServer[k]).toEqual(guest[k])
+    expect(onServer.notes.map((n) => n.body).sort()).toEqual(guest.notes.map((n) => n.body).sort())
+    expect(mergeImport(readStores(), readDeviceDoc()!).anything).toBe(false)
+  })
+
+  it('takes nothing when the account would be too full, and says why', async () => {
+    const { e } = await guestThenAccount()
+    addTask('already here')
+    await e.flush()
+    const before = readStores()
+    const tasks = Array.from({ length: 5000 }, (_, i) => ({ id: `big${i}`, kind: 'todo' as const, title: `t${i}`, done: false, source: 'manual' as const }))
+    const outcome = await e.addAll(cleanDoc({ ...before, tasks: [...before.tasks, ...tasks] }))
+    expect(outcome).toEqual({ error: expect.stringContaining('5,000 tasks') })
+    expect(readStores()).toEqual(before)
+    expect(status()).toBe('saved')
+    expect((await stored()).tasks).toHaveLength(1)
+    expect(e.hasUnsaved()).toBe(false)
+  })
+
+  it('keeps trying when the connection drops during an import', async () => {
+    const { e } = await guestThenAccount()
+    network = (method) => (method === 'POST' ? Promise.reject(new TypeError('offline')) : undefined)
+    expect(await importAll(e)).toBe('pending')
+    expect(useScheduleStore.getState().courses).toHaveLength(5)
+    expect(readDeviceDoc()!.courses).toHaveLength(5)
+    network = null
+    await e.retryNow()
+    expect((await stored()).courses).toHaveLength(5)
+  })
+
+  it('does not start while something else is unsaved', async () => {
+    const { e } = await guestThenAccount()
+    network = () => Promise.reject(new TypeError('offline'))
+    addTask('unsaved')
+    expect(await importAll(e)).toEqual({ error: expect.stringContaining('not saved yet') })
+    expect(useScheduleStore.getState().courses).toEqual([])
+  })
+
+  it('finishes after signing in again when the session ended during it', async () => {
+    const { a, e } = await guestThenAccount()
+    cookie = ''
+    expect(await importAll(e)).toBe('pending')
+    expect(useSyncStore.getState().heldFor).toBe(a.email)
+    expect(readDeviceDoc()!.courses).toHaveLength(5)
+    await signIn(a)
+    useAuthStore.getState().signInAccount(a)
+    await vi.waitFor(async () => expect((await stored()).courses).toHaveLength(5))
   })
 })

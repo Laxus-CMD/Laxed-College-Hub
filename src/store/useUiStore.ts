@@ -14,6 +14,7 @@ export type DialogState =
   | { type: 'password' }
   | { type: 'delete-account' }
   | { type: 'ics' }
+  | { type: 'import' }
 
 export interface Toast {
   message: string

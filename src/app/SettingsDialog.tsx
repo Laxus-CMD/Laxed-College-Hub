@@ -9,6 +9,8 @@ import { clearAllData, loadDemoData } from '@/store/actions'
 import { useAuthStore, useProfile } from '@/store/useAuthStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
+import { downloadBackup } from '@/sync/deviceData'
+import { readStores } from '@/sync/doc'
 import { sync } from '@/sync/engine'
 import { SaveStatusLine } from '@/sync/SaveStatusLine'
 
@@ -109,6 +111,16 @@ export function SettingsDialog() {
           <ThemeSegmented showLabels />
         </div>
         <div className="h-px bg-line" />
+        <div className="flex flex-wrap gap-2.5">
+          <Button size="sm" onClick={() => downloadBackup(readStores())}>
+            Download my data
+          </Button>
+          {account ? (
+            <Button size="sm" onClick={() => openDialog({ type: 'import' })}>
+              Import data
+            </Button>
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-2.5">
           <Button size="sm" variant={armed === 'clear' ? 'destructive' : 'ghost'} onClick={() => confirm('clear')}>
             {armed === 'clear' ? 'Click again to clear' : 'Clear all data'}

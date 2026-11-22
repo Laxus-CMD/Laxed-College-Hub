@@ -164,6 +164,15 @@ A role can only be one of the two rows in `roles`, so adding a role (for example
 - **Signing out** saves first, and asks before dropping anything that could not be saved. The account's data leaves the app and the guest data comes back.
 - `tests/sync.test.ts` runs all of this against the real API and database.
 
+### Importing guest data
+
+- After sign-in, if this browser has guest data that the account does not, the app asks before adding it. It never imports by itself, because the browser may be shared.
+- Sample data nobody changed is left out. A sample course that was used for real comes along whole.
+- The account's own records are never changed or removed. The same course typed on two devices (same code and name) becomes one. Records the account already has are skipped. A note with different text is added next to the existing one.
+- The import is all or nothing. If the account cannot take it, everything goes back to how it was.
+- The browser copy is removed only after the server has confirmed the save, and only if the box is ticked.
+- "Download my data" in Your data saves a JSON backup, which "Import data" can read back. Browser data belongs to one web address, so this is also how to move it between addresses.
+
 ### Migrations
 
 - Files are named `server/migrations/NNN_name.sql`. Each runs once, in order, inside a transaction, and is recorded in `schema_migrations`.

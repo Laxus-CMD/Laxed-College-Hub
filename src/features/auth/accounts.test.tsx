@@ -6,6 +6,7 @@ import type { Account } from '@/features/auth/api'
 import { resetStores } from '@/test/seed'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useTaskStore } from '@/store/useTaskStore'
+import { useSyncStore } from '@/sync/useSyncStore'
 
 const ADMIN: Account = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -258,5 +259,131 @@ describe('data in the account', () => {
     expect(screen.getAllByText('Not backed up').length).toBeGreaterThan(0)
     const dialog = await openSettings(userEvent.setup())
     expect(dialog).toHaveTextContent(/Saved only in this browser/)
+  })
+})
+
+describe('importing what is in this browser', () => {
+  let nextId = 100
+  /** A guest who added a task, then signs in to a new account. */
+  const start = async (routes: Record<string, Handler> = {}) => {
+    localStorage.removeItem('college-hub.import-later')
+    useAuthStore.setState({ account: null, guest: true })
+    useTaskStore.getState().addTask({ kind: 'todo', title: 'Guest task' })
+    const account = { ...STUDENT, id: `00000000-0000-4000-8000-000000000${nextId++}` }
+    const saved: { upsert: { tasks: { title: string }[] } }[] = []
+    mockApi({
+      ...options,
+      ...emptyAccount(account),
+      'POST /api/data/sync': (body) => {
+        saved.push(body as (typeof saved)[0])
+        return [200, { revision: 2, data: null, noteCopies: {} }]
+      },
+      ...routes,
+    })
+    const u = userEvent.setup()
+    render(<App />)
+    useAuthStore.getState().signInAccount(account)
+    return { u, saved, account }
+  }
+  const inBrowser = () => localStorage.getItem('college-hub.tasks') ?? ''
+
+  it('asks first, adds it, and then removes the browser copy', async () => {
+    const { u, saved } = await start()
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    expect(dialog).toHaveTextContent('This browser has 1 task that student@collegehub.test does not')
+    expect(dialog).toHaveTextContent('Only add it if it is yours')
+    expect(saved).toEqual([])
+    await u.click(within(dialog).getByRole('button', { name: 'Add to my account' }))
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Added 1 task to your account. The copy in this browser was removed.')
+    expect(saved.at(-1)!.upsert.tasks.map((t) => t.title)).toEqual(['Guest task'])
+    expect(inBrowser()).toBe('')
+  })
+
+  it('keeps the browser copy when asked to', async () => {
+    const { u } = await start()
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    await u.click(within(dialog).getByRole('checkbox', { name: /Remove it from this browser/ }))
+    await u.click(within(dialog).getByRole('button', { name: 'Add to my account' }))
+    expect(await within(dialog).findByRole('status')).toHaveTextContent(/^Added 1 task to your account\.$/)
+    expect(inBrowser()).toContain('Guest task')
+  })
+
+  it('keeps the browser copy when saving fails', async () => {
+    const { u } = await start({ 'POST /api/data/sync': () => [500, { error: 'x' }] })
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    await u.click(within(dialog).getByRole('button', { name: 'Add to my account' }))
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('not saved yet')
+    expect(inBrowser()).toContain('Guest task')
+  })
+
+  it('shows why when the account cannot take it', async () => {
+    const { u } = await start({ 'POST /api/data/sync': () => [422, { error: 'Your account is full.' }] })
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    await u.click(within(dialog).getByRole('button', { name: 'Add to my account' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Your account is full.')
+    expect(inBrowser()).toContain('Guest task')
+    expect(useTaskStore.getState().tasks).toEqual([])
+  })
+
+  it('leaves everything alone with Not now, and stays available in Your data', async () => {
+    const { u, saved } = await start()
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    await u.click(within(dialog).getByRole('button', { name: 'Not now' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(saved).toEqual([])
+    expect(inBrowser()).toContain('Guest task')
+    await u.click(screen.getAllByRole('button', { name: 'Your data' })[0]!)
+    await u.click(await screen.findByRole('button', { name: 'Import data' }))
+    expect(await screen.findByRole('dialog', { name: 'Import your data' })).toHaveTextContent('1 task')
+  })
+
+  it('asks an account with data only until someone says Not now', async () => {
+    const withData = (id: string): Handler => () => [
+      200,
+      {
+        accountId: id,
+        revision: 1,
+        data: {
+          revision: 1,
+          profile: { name: 'Test', isDemo: false, bannerDismissed: false, scale: null, prior: { cgpa: null, units: null } },
+          courses: [], sessions: [], notes: [], components: [],
+          tasks: [{ id: 't1', kind: 'todo', title: 'Account task', done: false, source: 'manual' }],
+        },
+      },
+    ]
+    const { u } = await start({ 'GET /api/data': withData(`00000000-0000-4000-8000-000000000${nextId}`) })
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    await u.click(within(dialog).getByRole('button', { name: 'Not now' }))
+
+    const other = { ...STUDENT, id: `00000000-0000-4000-8000-000000000${nextId++}` }
+    mockApi({ ...options, ...emptyAccount(other), 'GET /api/data': withData(other.id) })
+    useAuthStore.getState().signInAccount(other)
+    await waitFor(() => expect(useSyncStore.getState()).toMatchObject({ phase: 'ready', accountId: other.id }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not offer untouched sample data', async () => {
+    const account = { ...STUDENT, id: `00000000-0000-4000-8000-000000000${nextId++}` }
+    mockApi({ ...options, ...emptyAccount(account) })
+    render(<App />)
+    useAuthStore.getState().signInAccount(account)
+    await screen.findByRole('navigation', { name: 'Main menu' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('imports a backup file, and refuses other files', async () => {
+    const { u, saved } = await start()
+    const dialog = await screen.findByRole('dialog', { name: 'Import your data' })
+    const input = within(dialog).getByLabelText('Backup file')
+    const upload = (text: string, name: string) => u.upload(input, new File([text], name, { type: 'application/json' }))
+    await upload('{"hello":1}', 'other.json')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('not a College Hub backup')
+    await upload(JSON.stringify({ app: 'college-hub', version: 1, tasks: [{ id: 't9', kind: 'todo', title: 'From file', done: false, source: 'manual' }] }), 'mine.json')
+    await within(dialog).findByText(/mine.json has/)
+    await u.click(within(dialog).getByRole('button', { name: 'Add to my account' }))
+    await within(dialog).findByRole('status')
+    expect(saved.at(-1)!.upsert.tasks.map((t) => t.title)).toEqual(['From file'])
+    // The browser's own data was not part of this.
+    expect(inBrowser()).toContain('Guest task')
   })
 })

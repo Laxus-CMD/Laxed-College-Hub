@@ -54,6 +54,11 @@ export function setDeviceStorage(on: boolean): void {
   onDevice = on
 }
 
+/** Straight to the browser's copy, even while an account is open. Only for importing and removing guest data. */
+export const readDevice = (key: string): string | null => safeStorage.getItem(key)
+export const writeDevice = (key: string, value: string): void => safeStorage.setItem(key, value)
+export const removeDevice = (key: string): void => safeStorage.removeItem(key)
+
 /** For schedules, tasks, notes and grades. Reads and writes the browser for guests only. */
 export const studentStorage = createJSONStorage(() => ({
   getItem: (key) => (onDevice ? safeStorage.getItem(key) : null),
