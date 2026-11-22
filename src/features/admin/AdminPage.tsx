@@ -34,7 +34,7 @@ export default function AdminPage() {
 
   const onApiError = useCallback((err: unknown) => {
     // A 401 means the session ended (expired, or this account's role changed).
-    if (err instanceof ApiError && err.status === 401) useAuthStore.getState().signOut()
+    if (err instanceof ApiError && err.status === 401) useAuthStore.getState().sessionEnded()
     setError(err instanceof Error ? err.message : 'Something went wrong.')
   }, [])
 

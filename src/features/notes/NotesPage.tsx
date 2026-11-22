@@ -17,6 +17,7 @@ import { useCourseMap } from '@/store/selectors'
 import { useNoteStore } from '@/store/useNoteStore'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useUiStore } from '@/store/useUiStore'
+import { MAX_NOTE_CHARS } from '@/sync/doc'
 
 const shortDate = (key: string) =>
   parseDateKey(key).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -107,6 +108,7 @@ function NoteEditor({ note }: { note: Note }) {
       {mode === 'write' ? (
         <Textarea
           aria-label="Note body"
+          maxLength={MAX_NOTE_CHARS}
           className="min-h-[340px] text-[15px]"
           placeholder={'# Heading\n\n- bullet point\n- [ ] something to do\n\n**bold**, *italic* and `code` work too.'}
           value={note.body}

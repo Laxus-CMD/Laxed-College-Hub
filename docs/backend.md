@@ -1,6 +1,6 @@
 # Accounts backend
 
-College Hub has an accounts API in `server/`. It adds email and password sign-up and login, and two roles: **admin** and **user**. Google sign-in and "Continue without an account" still work as before. The API can also store each student's courses, classes, tasks, notes and grades (see [Student data](#student-data)). The app does not use that part yet: it still saves to the browser.
+College Hub has an accounts API in `server/`. It adds email and password sign-up and login, and two roles: **admin** and **user**. Google sign-in and "Continue without an account" still work as before. The API also stores each student's courses, classes, tasks, notes and grades (see [Student data](#student-data)). Guests still save to the browser.
 
 ```
 Browser ──/api/*──> Vercel Function (prod) or Vite proxy (dev) ──> Express API (server/) ──> PostgreSQL
@@ -144,7 +144,7 @@ A role can only be one of the two rows in `roles`, so adding a role (for example
 | `GET /api/data` | Everything the student has saved, and its `revision`. With `?since=N`, `data` is null if nothing changed since revision N. |
 | `POST /api/data/sync` | Applies `upsert`, `remove` and `profile` changes in one transaction: all of it or none of it. |
 
-- **Isolation:** the user id only ever comes from the session cookie. There is no parameter for it.
+- **Isolation:** whose data it is only ever comes from the session cookie. A save also names the account its tab is showing. If another tab signed in to someone else, the two differ and the save is refused (409).
 - **Whole or nothing:** one invalid record answers 400 and saves nothing. Saves for one student take turns (row lock on `student_profiles`).
 - **Two devices:** each save sends the `baseRevision` it was made on. If another device saved first, the answer includes everything, so the browser can catch up. The last save of a record wins, except for a note's text: when two devices edit it at once, the second one is kept as a copy and reported in `noteCopies`. A delete never removes a note that another device just edited.
 - **Retries:** sending the same save again is safe. `clientId` tells a retry from another device.
@@ -152,6 +152,17 @@ A role can only be one of the two rows in `roles`, so adding a role (for example
 - **Notes:** leave out `title` and `body` when only the links changed.
 - **Limits:** 200 courses, 500 classes, 5,000 tasks, 3,000 notes, 3,000 components and 3 MB in total for each account (422 beyond that), 100,000 characters in a note, 4 MB in a request, and 120 saves a minute. Vercel allows 4.5 MB.
 - **Privacy:** answers are `no-store`. Postgres error details, which can contain the row, are kept out of the logs. Admin routes do not return student data.
+
+### How the app saves (`src/sync/`)
+
+- **Guests:** the Zustand stores persist to `localStorage`, as before. Nothing is sent.
+- **Accounts:** the stores live in memory only. `setDeviceStorage(false)` stops them touching the browser. Data loads after sign-in, and the app shows nothing until it has.
+- **Saving:** `base` is what the server has. What is unsaved is always the difference between `base` and the stores, so a retry sends the latest. Saves go out 1 second after an edit, and at least every 5 seconds while typing.
+- **Answers with data:** the app takes the server's version and puts edits made since back on top. An open Undo is dropped, because it would bring back the old state.
+- **Failures:** network and server errors retry with growing delays and show a banner. Invalid data or a full account (400, 413, 422) waits for the next edit.
+- **Session ended:** unsaved changes stay in memory, only for that account, and are saved when the same person signs in again. Closing the tab with unsaved changes asks first.
+- **Signing out** saves first, and asks before dropping anything that could not be saved. The account's data leaves the app and the guest data comes back.
+- `tests/sync.test.ts` runs all of this against the real API and database.
 
 ### Migrations
 

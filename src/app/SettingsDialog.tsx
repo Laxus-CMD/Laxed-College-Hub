@@ -9,6 +9,8 @@ import { clearAllData, loadDemoData } from '@/store/actions'
 import { useAuthStore, useProfile } from '@/store/useAuthStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
+import { sync } from '@/sync/engine'
+import { SaveStatusLine } from '@/sync/SaveStatusLine'
 
 /** Account, name, plus clearing or restoring the sample data. */
 export function SettingsDialog() {
@@ -21,11 +23,26 @@ export function SettingsDialog() {
   const signOut = useAuthStore((s) => s.signOut)
   const [draft, setDraft] = useState(name)
   const [armed, setArmed] = useState<'clear' | 'restore' | null>(null)
+  const [leaving, setLeaving] = useState<'saving' | 'unsaved' | null>(null)
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     setName(draft.trim())
     close()
+  }
+
+  /** Saves what is left first. If that fails, signing out takes a second click. */
+  const onSignOut = async () => {
+    if (account && leaving !== 'unsaved') {
+      setLeaving('saving')
+      if (!(await sync.flush())) {
+        setLeaving('unsaved')
+        return
+      }
+    }
+    sync.discard()
+    close()
+    signOut()
   }
 
   const confirm = (kind: 'clear' | 'restore') => {
@@ -57,21 +74,28 @@ export function SettingsDialog() {
           ) : null}
           <Button
             size="sm"
-            variant={user ? 'ghost' : 'primary'}
-            onClick={() => {
-              close()
-              signOut()
-            }}
+            variant={leaving === 'unsaved' ? 'destructive' : user ? 'ghost' : 'primary'}
+            disabled={leaving === 'saving'}
+            onClick={() => void onSignOut()}
           >
-            {user ? 'Sign out' : 'Sign in'}
+            {leaving === 'saving' ? 'Saving…' : leaving === 'unsaved' ? 'Sign out anyway' : user ? 'Sign out' : 'Sign in'}
           </Button>
         </section>
+        {leaving === 'unsaved' ? (
+          <p role="alert" className="text-[13px] text-bad">
+            Your latest changes are not saved yet. If you sign out now, they are lost.
+          </p>
+        ) : null}
+        <div className="text-[13px] text-muted">
+          <SaveStatusLine full />
+        </div>
         <Label label="Your name">
           <Input data-autofocus maxLength={30} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Shown in the greeting" />
         </Label>
         <p className="text-[13px] text-muted">
-          Courses, classes, tasks, notes and grades are saved in this browser on this device and are not sent anywhere.
-          {account ? ' Your account details (name, email, photo link and role) are stored on the College Hub server.' : ''}{' '}
+          {account
+            ? 'Your courses, classes, tasks, notes and grades are saved to your account on the College Hub server, along with your name, email, photo link and role.'
+            : 'Your courses, classes, tasks, notes and grades are lost if you clear this browser. Sign in to keep new ones in an account.'}{' '}
           <a href={PRIVACY_URL} className="text-accent underline-offset-2 hover:underline">
             Privacy Policy
           </a>

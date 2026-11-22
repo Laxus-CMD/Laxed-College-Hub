@@ -16,6 +16,8 @@ interface AuthState {
   signOut: () => void
   /** The account is already gone on the server. */
   accountDeleted: () => void
+  /** The server no longer accepts this session. */
+  sessionEnded: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -36,6 +38,7 @@ export const useAuthStore = create<AuthState>()(
         window.google?.accounts?.id?.disableAutoSelect()
         set({ account: null, guest: false })
       },
+      sessionEnded: () => set({ account: null, guest: false }),
     }),
     {
       name: 'college-hub.auth',

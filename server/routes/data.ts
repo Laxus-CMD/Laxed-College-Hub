@@ -13,7 +13,7 @@ export interface DataLimits {
 
 export const DEFAULT_DATA_LIMITS: DataLimits = { savesPerMinute: 120, loadsPerMinute: 120 }
 
-/** The signed-in student's own data. Nobody else's is reachable: the user id only ever comes from the session. */
+/** The signed-in student's own data. Nobody else's is reachable: whose data it is only ever comes from the session. */
 export function dataRoutes(db: Db, limits: DataLimits = DEFAULT_DATA_LIMITS): Router {
   const router = Router()
   const saves = new RateLimiter(db, 'data-save', limits.savesPerMinute, 60)
@@ -32,11 +32,11 @@ export function dataRoutes(db: Db, limits: DataLimits = DEFAULT_DATA_LIMITS): Ro
     await limit(loads, userId)
     const { since } = parse(loadQuery, req.query)
     if (since !== undefined && since === (await currentRevision(db, userId))) {
-      res.json({ revision: since, data: null })
+      res.json({ accountId: userId, revision: since, data: null })
       return
     }
     const data = await loadData(db, userId)
-    res.json({ revision: data.revision, data })
+    res.json({ accountId: userId, revision: data.revision, data })
   })
 
   // The big body limit comes after the sign-in and rate checks, so strangers cannot use it.
@@ -48,7 +48,9 @@ export function dataRoutes(db: Db, limits: DataLimits = DEFAULT_DATA_LIMITS): Ro
     },
     express.json({ limit: '4mb' }),
     async (req, res) => {
-      res.json(await saveData(db, req.user!.id, parse(saveBody, req.body)))
+      const body = parse(saveBody, req.body)
+      if (body.accountId !== req.user!.id) throw new HttpError(409, 'You are signed in to another account in this browser.')
+      res.json(await saveData(db, req.user!.id, body))
     },
   )
 

@@ -3,7 +3,6 @@ import { Input, Label } from '@/components/ui/Field'
 import { accountsApi, ApiError } from '@/features/auth/api'
 import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/store/useAuthStore'
-import { useSettingsStore } from '@/store/useSettingsStore'
 
 type Mode = 'login' | 'signup'
 
@@ -41,8 +40,6 @@ export function AccountForm({ ready, allowSignup }: { ready: boolean; allowSignu
     try {
       const account =
         mode === 'signup' ? await accountsApi.signup({ name, email, password }) : await accountsApi.login({ email, password })
-      const settings = useSettingsStore.getState()
-      if (!settings.name) settings.setName(account.name.split(' ')[0]!.slice(0, 30))
       useAuthStore.getState().signInAccount(account)
     } catch (err) {
       if (err instanceof ApiError) {

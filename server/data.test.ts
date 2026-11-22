@@ -47,12 +47,13 @@ let people = 0
 /** A new student, signed in. */
 async function student() {
   const email = `student${++people}@example.com`
-  const { cookie } = await call('', 'POST', '/auth/signup', { name: 'Test Student', email, password: PASSWORD })
+  const { cookie, json } = await call('', 'POST', '/auth/signup', { name: 'Test Student', email, password: PASSWORD })
+  const accountId = json.user.id as string
   const load = async () => (await call(cookie, 'GET', '/data')).json.data as StudentData
   /** A browser tab that remembers the revision it is on. */
   const tab = (clientId: string) => {
     const state = { revision: 0 }
-    const send = (body: object, baseRevision = state.revision) => call(cookie, 'POST', '/data/sync', { clientId, baseRevision, ...body })
+    const send = (body: object, baseRevision = state.revision) => call(cookie, 'POST', '/data/sync', { accountId, clientId, baseRevision, ...body })
     const save = async (body: object) => {
       const res = await send(body)
       expect(res.status, JSON.stringify(res.json)).toBe(200)
@@ -61,7 +62,7 @@ async function student() {
     }
     return { state, send, save }
   }
-  return { email, cookie, load, tab, ...tab('tab-main-1') }
+  return { email, cookie, accountId, load, tab, ...tab('tab-main-1') }
 }
 
 const AT = '2026-11-22T03:00:00.000Z'
@@ -128,7 +129,7 @@ describe('loading and saving', () => {
   it('answers ?since with nothing when nothing changed', async () => {
     const s = await student()
     await s.save(full)
-    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ revision: 1, data: null })
+    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null })
     expect((await call(s.cookie, 'GET', '/data?since=0')).json.data.courses).toHaveLength(2)
     expect((await call(s.cookie, 'GET', '/data?since=abc')).status).toBe(400)
   })
@@ -204,6 +205,20 @@ describe('each student only reaches their own data', () => {
     expect((await a.load()).revision).toBe(1)
   })
 
+  it('refuses a save from a tab that still shows another account', async () => {
+    const a = await student()
+    const b = await student()
+    await a.save(full)
+    // B signed in in another tab, so A's tab now sends B's cookie.
+    const res = await call(b.cookie, 'POST', '/data/sync', { accountId: a.accountId, clientId: 'tab-main-1', baseRevision: 1, upsert: { tasks: [task('t9')] } })
+    expect(res.status).toBe(409)
+    expect((await b.load()).tasks).toEqual([])
+    expect((await a.load()).tasks).toEqual(full.upsert.tasks)
+    // And B cannot save as A by naming A.
+    expect((await b.send({ accountId: a.accountId, remove: { courses: ['c1'] } })).status).toBe(409)
+    expect((await a.load()).courses).toEqual(full.upsert.courses)
+  })
+
   it('refuses saves from another site', async () => {
     const s = await student()
     const res = await call(s.cookie, 'POST', '/data/sync', { clientId: 'tab-main-1', baseRevision: 0 }, { origin: 'https://evil.example' })
@@ -218,7 +233,7 @@ describe('each student only reaches their own data', () => {
   })
 
   it('asks to sign in when the account disappears during a save', async () => {
-    const body = saveBody.parse({ clientId: 'tab-main-1', baseRevision: 0, upsert: { tasks: [task('t1')] } })
+    const body = saveBody.parse({ accountId: '00000000-0000-4000-8000-000000000000', clientId: 'tab-main-1', baseRevision: 0, upsert: { tasks: [task('t1')] } })
     await expect(saveData(db, '00000000-0000-4000-8000-000000000000', body)).rejects.toMatchObject({ status: 401 })
   })
 
@@ -464,7 +479,7 @@ describe('limits', () => {
     const res = await fetch(`http://127.0.0.1:${(broken.address() as AddressInfo).port}/api/data/sync`, {
       method: 'POST',
       headers: { origin: ORIGIN, cookie: s.cookie, 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId: 'tab-main-1', baseRevision: 0 }),
+      body: JSON.stringify({ accountId: s.accountId, clientId: 'tab-main-1', baseRevision: 0 }),
     })
     expect(res.status).toBe(500)
     expect(await res.text()).not.toContain('diary')

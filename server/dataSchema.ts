@@ -105,6 +105,11 @@ const records = <T extends z.ZodType<{ id: string }>>(schema: T, max: number) =>
 const ids = (max: number) => z.array(id).max(max).default([])
 
 export const saveBody = z.strictObject({
+  /**
+   * The account this tab is showing. It never chooses whose data is saved: it only has to match the
+   * session, because another tab may have signed in to someone else and all tabs share one cookie.
+   */
+  accountId: z.uuid('Bad account id.'),
   /** One browser tab. Tells a retry of our own save from another device's save. */
   clientId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, 'Bad client id.'),
   /** The revision the changes were made on top of. */

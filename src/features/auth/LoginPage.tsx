@@ -6,9 +6,9 @@ import { accountsApi, ApiError, type SignInOptions } from '@/features/auth/api'
 import { GOOGLE_CLIENT_ID, loadGoogleIdentity } from '@/features/auth/google'
 import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { useAuthStore } from '@/store/useAuthStore'
-import { useSettingsStore } from '@/store/useSettingsStore'
 import { useResolvedTheme } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
+import { useSyncStore } from '@/sync/useSyncStore'
 
 const HIGHLIGHTS = [
   { icon: CalendarDays, text: 'Your weekly schedule and what is on right now' },
@@ -38,8 +38,6 @@ function GoogleButton({ onError }: { onError: (message: string | null) => void }
             onError(null)
             accountsApi.google(credential).then(
               ({ user, passwordRemoved }) => {
-                const settings = useSettingsStore.getState()
-                if (!settings.name) settings.setName(user.name.split(' ')[0]!.slice(0, 30))
                 useAuthStore.getState().signInAccount(user)
                 if (passwordRemoved) {
                   useUiStore.getState().showToast({ message: 'Google is now linked. Your old password no longer works.' })
@@ -103,6 +101,7 @@ function Or() {
 
 export default function LoginPage() {
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
+  const heldFor = useSyncStore((s) => s.heldFor)
   const [error, setError] = useState<string | null>(null)
   // undefined while asking the server, null when it cannot be reached.
   const [options, setOptions] = useState<SignInOptions | null | undefined>(undefined)
@@ -147,6 +146,11 @@ export default function LoginPage() {
           </ul>
 
           <div className="mt-8 flex flex-col gap-3">
+            {heldFor ? (
+              <p role="alert" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-warn">
+                You were signed out before everything was saved. Keep this tab open and sign in as {heldFor} to save your changes.
+              </p>
+            ) : null}
             {options === null ? (
               <p role="note" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-muted">
                 Sign-in is offline right now. You can still continue without an account.

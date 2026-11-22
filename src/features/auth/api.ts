@@ -47,12 +47,14 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown, { keepalive = false } = {}): Promise<T> {
   let res: Response
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method,
       credentials: 'same-origin',
+      // Lets a save finish while the page is closing.
+      keepalive,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     })

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { persistStorage } from '@/lib/storage'
+import { studentStorage } from '@/lib/storage'
 
 interface SettingsState {
   name: string
@@ -25,7 +25,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'college-hub.settings',
       version: 1,
-      storage: persistStorage,
+      storage: studentStorage,
       partialize: (s) => ({ name: s.name, isDemo: s.isDemo, bannerDismissed: s.bannerDismissed }),
     },
   ),

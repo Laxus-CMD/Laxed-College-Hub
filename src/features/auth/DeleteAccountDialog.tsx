@@ -5,6 +5,7 @@ import { Input, Label } from '@/components/ui/Field'
 import { accountsApi, ApiError } from '@/features/auth/api'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useUiStore } from '@/store/useUiStore'
+import { sync } from '@/sync/engine'
 
 /** Permanently deletes the signed-in account, after the password or (for Google accounts) the typed email. */
 export function DeleteAccountDialog() {
@@ -24,6 +25,7 @@ export function DeleteAccountDialog() {
     try {
       await accountsApi.deleteAccount(byPassword ? { password: value } : { email: value })
       close()
+      sync.discard()
       useAuthStore.getState().accountDeleted()
     } catch (err) {
       const field = err instanceof ApiError ? (err.fields.password ?? err.fields.email) : undefined

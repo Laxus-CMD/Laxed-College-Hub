@@ -6,6 +6,8 @@ Patch notes for College Hub. Newest first.
 
 ### New
 
+- **Your data follows your account.** Signed-in students' courses, classes, tasks, notes and grades are saved to their account and show up on every device. Guests still save to their browser.
+- **Save status** in the sidebar, a warning when changes are not saved, and a question before closing the page with unsaved changes.
 - **The API runs on Vercel** with the site, as one function. Migrations run during the deploy, and rate limits are shared by every instance.
 - **Create an account with email and password**, or sign in to one, from the login page. Google and guest mode still work.
 - **Admin page** for admin accounts. Search accounts, change roles, disable or enable accounts, and see recent sign-in activity.

@@ -10,6 +10,7 @@ import { Avatar } from '@/features/auth/Avatar'
 import { useIsAdmin, useProfile } from '@/store/useAuthStore'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useUiStore } from '@/store/useUiStore'
+import { SaveStatusLine } from '@/sync/SaveStatusLine'
 
 const MENU: { route: Route; label: string; short: string; icon: ComponentType<{ className?: string }> }[] = [
   { route: 'overview', label: 'Overview', short: 'Overview', icon: House },
@@ -159,14 +160,11 @@ export function Sidebar({ route }: { route: Route }) {
       <div className="flex flex-col gap-2.5 border-t border-line px-1 pt-3 max-lg:hidden">
         <ThemeSegmented />
         <div className="flex items-center justify-between gap-2 text-xs text-muted">
-          <span className="flex min-w-0 items-center gap-2 pl-0.5" title={user ? user.email : 'Saved on this device'}>
+          <span className="flex min-w-0 items-center gap-2 pl-0.5" title={user ? user.email : 'Not signed in'}>
             <Avatar user={user} className="size-6" />
             <span className="min-w-0">
               <span className="block truncate font-medium text-ink">{user ? user.name : 'Guest'}</span>
-              <span className="flex items-center gap-1.5 truncate">
-                <Dot color="var(--color-good)" className="size-1.5" />
-                Saved on this device
-              </span>
+              <SaveStatusLine />
             </span>
           </span>
           <Button size="sm" variant="subtle" onClick={() => openDialog({ type: 'settings' })}>
