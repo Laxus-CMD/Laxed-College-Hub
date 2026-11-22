@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Task } from '@/types'
 import { initialDemo } from '@/data/demo'
 import { uid } from '@/lib/cn'
-import { persistStorage } from '@/lib/storage'
+import { studentStorage } from '@/lib/storage'
 
 interface TaskState {
   tasks: Task[]
@@ -48,7 +48,7 @@ export const useTaskStore = create<TaskState>()(
     {
       name: 'college-hub.tasks',
       version: 1,
-      storage: persistStorage,
+      storage: studentStorage,
       partialize: (s) => ({ tasks: s.tasks }),
     },
   ),

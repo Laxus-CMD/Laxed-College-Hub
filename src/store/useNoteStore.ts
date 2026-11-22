@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Note } from '@/types'
 import { initialDemo } from '@/data/demo'
 import { uid } from '@/lib/cn'
-import { persistStorage } from '@/lib/storage'
+import { studentStorage } from '@/lib/storage'
 
 type NewNote = Partial<Pick<Note, 'title' | 'body' | 'courseId' | 'sessionId' | 'sessionDate'>>
 
@@ -53,7 +53,7 @@ export const useNoteStore = create<NoteState>()(
     {
       name: 'college-hub.notes',
       version: 1,
-      storage: persistStorage,
+      storage: studentStorage,
       partialize: (s) => ({ notes: s.notes }),
     },
   ),

@@ -1,11 +1,14 @@
 import { CalendarDays, ChartColumn, GraduationCap, NotebookPen, PencilLine } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ThemeToggleButton } from '@/app/ThemeToggle'
-import { GOOGLE_CLIENT_ID, loadGoogleIdentity, parseGoogleCredential } from '@/features/auth/google'
+import { AccountForm } from '@/features/auth/AccountForm'
+import { accountsApi, ApiError, type SignInOptions } from '@/features/auth/api'
+import { GOOGLE_CLIENT_ID, loadGoogleIdentity } from '@/features/auth/google'
 import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { useAuthStore } from '@/store/useAuthStore'
-import { useSettingsStore } from '@/store/useSettingsStore'
 import { useResolvedTheme } from '@/store/useThemeStore'
+import { useUiStore } from '@/store/useUiStore'
+import { useSyncStore } from '@/sync/useSyncStore'
 
 const HIGHLIGHTS = [
   { icon: CalendarDays, text: 'Your weekly schedule and what is on right now' },
@@ -17,7 +20,7 @@ const HIGHLIGHTS = [
 type Status = 'loading' | 'ready' | 'error' | 'unconfigured'
 
 /** Google's own button, so it follows their branding rules and handles the popup. */
-function GoogleButton({ onError }: { onError: (message: string) => void }) {
+function GoogleButton({ onError }: { onError: (message: string | null) => void }) {
   const slot = useRef<HTMLDivElement>(null)
   const theme = useResolvedTheme()
   const [status, setStatus] = useState<Status>(GOOGLE_CLIENT_ID ? 'loading' : 'unconfigured')
@@ -32,14 +35,16 @@ function GoogleButton({ onError }: { onError: (message: string) => void }) {
           client_id: GOOGLE_CLIENT_ID,
           ux_mode: 'popup',
           callback: ({ credential }) => {
-            const user = parseGoogleCredential(credential, GOOGLE_CLIENT_ID)
-            if (!user) {
-              onError('Google sign-in did not work. Please try again.')
-              return
-            }
-            const settings = useSettingsStore.getState()
-            if (!settings.name) settings.setName(user.givenName.slice(0, 30))
-            useAuthStore.getState().signIn(user)
+            onError(null)
+            accountsApi.google(credential).then(
+              ({ user, passwordRemoved }) => {
+                useAuthStore.getState().signInAccount(user)
+                if (passwordRemoved) {
+                  useUiStore.getState().showToast({ message: 'Google is now linked. Your old password no longer works.' })
+                }
+              },
+              (err: unknown) => onError(err instanceof ApiError ? err.message : 'Google sign-in did not work. Please try again.'),
+            )
           },
         })
         slot.current.replaceChildren()
@@ -84,9 +89,32 @@ function GoogleButton({ onError }: { onError: (message: string) => void }) {
   )
 }
 
+function Or() {
+  return (
+    <div className="flex items-center gap-3 text-xs text-faint">
+      <span className="h-px flex-1 bg-line" />
+      or
+      <span className="h-px flex-1 bg-line" />
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
+  const heldFor = useSyncStore((s) => s.heldFor)
   const [error, setError] = useState<string | null>(null)
+  // undefined while asking the server, null when it cannot be reached.
+  const [options, setOptions] = useState<SignInOptions | null | undefined>(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    accountsApi.options().then((o) => {
+      if (!cancelled) setOptions(o)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="relative grid min-h-svh place-items-center px-4 py-10">
@@ -118,17 +146,28 @@ export default function LoginPage() {
           </ul>
 
           <div className="mt-8 flex flex-col gap-3">
-            <GoogleButton onError={setError} />
-            {error ? (
-              <p role="alert" className="text-center text-[13px] text-bad">
-                {error}
+            {heldFor ? (
+              <p role="alert" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-warn">
+                You were signed out before everything was saved. Keep this tab open and sign in as {heldFor} to save your changes.
               </p>
             ) : null}
-            <div className="flex items-center gap-3 text-xs text-faint">
-              <span className="h-px flex-1 bg-line" />
-              or
-              <span className="h-px flex-1 bg-line" />
-            </div>
+            {options === null ? (
+              <p role="note" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-muted">
+                Sign-in is offline right now. You can still continue without an account.
+              </p>
+            ) : (
+              <>
+                <GoogleButton onError={setError} />
+                {error ? (
+                  <p role="alert" className="text-center text-[13px] text-bad">
+                    {error}
+                  </p>
+                ) : null}
+                <Or />
+                <AccountForm ready={options !== undefined} allowSignup={options?.emailSignup ?? false} />
+              </>
+            )}
+            <Or />
             <button
               type="button"
               onClick={continueAsGuest}
@@ -139,8 +178,7 @@ export default function LoginPage() {
           </div>
         </section>
         <p className="mt-5 px-4 text-center text-xs text-faint">
-          Your courses, tasks, notes and grades stay saved in this browser. Google only tells College Hub your name, email
-          and photo.
+          An account is recommended. Without one, everything stays in this browser only and is lost if you clear it.
         </p>
         <p className="mt-2 px-4 text-center text-xs text-faint">
           By continuing, you agree to the{' '}

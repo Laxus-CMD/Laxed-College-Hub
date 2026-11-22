@@ -31,11 +31,21 @@ Grades ──> gradeMath (pure functions) ──> Score cards and what-if slider
 | `useNoteStore` | Markdown notes with course and session links | Yes |
 | `useGradeStore` | Grade components, scale, overrides, targets, previous CGPA | Yes |
 | `useSettingsStore` | Name and the sample data flag | Yes |
-| `useAuthStore` | The signed-in Google profile (name, email, photo) or the guest choice. `App` shows the login page until one is set | Yes |
+| `useAuthStore` | The signed-in Google profile, the College Hub account (email login, with its role), or the guest choice. `App` shows the login page until one is set and checks the account's session with `/api/auth/me` on load | Yes |
 | `useThemeStore` | Light, Dark or System appearance. `index.html` applies it before first paint | Yes |
 | `useUiStore` | Open dialogs, filters, selections, toast | No |
 
 Deleting across stores goes through `store/actions.ts`. Each action takes a snapshot first so Undo can restore everything.
+
+## Accounts API
+
+`server/` is a small Express API for email accounts and roles. App data does not go through it. See [backend.md](backend.md).
+
+```
+LoginPage / AdminPage ──fetch /api──> server/app.ts ──> routes/auth.ts, routes/admin.ts
+                                         │  helmet, httpsOnly, json(10kb), csrfGuard, loadSession
+                                         └─> db.ts (pg Pool or PGlite) ──> users, roles, sessions, audit_log
+```
 
 ## Principles
 

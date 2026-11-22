@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { GradeComponent, GradeScaleRow } from '@/types'
 import { initialDemo } from '@/data/demo'
 import { uid } from '@/lib/cn'
-import { persistStorage } from '@/lib/storage'
+import { studentStorage } from '@/lib/storage'
 import { DEFAULT_SCALE } from '@/features/grades/gradeMath'
 
 interface GradeState {
@@ -67,7 +67,7 @@ export const useGradeStore = create<GradeState>()(
     {
       name: 'college-hub.grades',
       version: 1,
-      storage: persistStorage,
+      storage: studentStorage,
       partialize: (s) => ({
         components: s.components,
         scale: s.scale,

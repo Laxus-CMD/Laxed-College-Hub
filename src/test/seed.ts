@@ -7,18 +7,20 @@ import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
-
-export const TEST_USER = { id: 'google-123', name: 'Ana Cruz', givenName: 'Ana', email: 'ana@example.com' }
+import { sync } from '@/sync/engine'
 
 /** Puts every store back to the demo data for a given moment. Used by tests. */
 export function resetStores(now: Date): void {
+  // Forget any account from the test before.
+  sync.discard()
+  sync.close()
   const demo = makeDemoData(now)
   useScheduleStore.setState({ courses: demo.courses, sessions: demo.sessions })
   useTaskStore.setState({ tasks: demo.tasks })
   useNoteStore.setState({ notes: demo.notes })
   useGradeStore.setState({ components: demo.components, overrides: {}, targets: {}, prior: { cgpa: null, units: null } })
   useSettingsStore.setState({ name: '', isDemo: true, bannerDismissed: false })
-  useAuthStore.setState({ user: TEST_USER, guest: false })
+  useAuthStore.setState({ account: null, guest: true })
   useThemeStore.setState({ theme: 'system' })
   delete document.documentElement.dataset.theme
   useUiStore.setState({

@@ -5,18 +5,30 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node --watch-path=server --env-file-if-exists=.env.server.local server/index.ts",
     "build": "tsc -b && vite build",
+    "build:vercel": "tsc -b && node scripts/build-vercel.ts",
     "lint": "oxlint",
     "preview": "vite preview",
+    "start": "node server/index.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "tsc -b",
+    "db:migrate": "node --env-file-if-exists=.env.server.local server/scripts/db.ts migrate",
+    "db:seed": "node --env-file-if-exists=.env.server.local server/scripts/db.ts seed",
+    "db:create-admin": "node --env-file-if-exists=.env.server.local server/scripts/db.ts create-admin",
     "check": "npm run lint && npm run test:run && npm run build"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.17",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "jose": "^6.2.18",
     "lucide-react": "^1.63.0",
+    "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "zod": "^4.6.7",
     "zustand": "^5.0.16"
   },
   "devDependencies": {
@@ -24,7 +36,9 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
@@ -35,5 +49,15 @@
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
-  "description": "A student dashboard for schedule, deadlines, notes and grades"
+  "description": "A student dashboard for schedule, deadlines, notes and grades",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

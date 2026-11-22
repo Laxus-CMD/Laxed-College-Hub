@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { ClassSession, Course } from '@/types'
 import { initialDemo } from '@/data/demo'
 import { uid } from '@/lib/cn'
-import { persistStorage } from '@/lib/storage'
+import { studentStorage } from '@/lib/storage'
 
 interface ScheduleState {
   courses: Course[]
@@ -46,7 +46,7 @@ export const useScheduleStore = create<ScheduleState>()(
     {
       name: 'college-hub.schedule',
       version: 1,
-      storage: persistStorage,
+      storage: studentStorage,
       partialize: (s) => ({ courses: s.courses, sessions: s.sessions }),
     },
   ),

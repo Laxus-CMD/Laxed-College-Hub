@@ -21,7 +21,7 @@ Students juggle a timetable app, a to-do app, a notes app and a grade spreadshee
 - [x] **What-if grade calculator** with weighted components, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
 - [x] **Notes** in markdown linked to class sessions. Take notes for the class in session straight from the hero banner.
 
-Also in V1: sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), sample data you can clear or restore, and everything saved in the browser.
+Also in V1: sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), and sample data you can clear or restore. Signed-in students' data is saved to their account and follows them to every device. Guests save to their browser.
 
 ## Tech stack
 
@@ -30,7 +30,8 @@ Also in V1: sign in with Google (or continue without an account), search across 
 | Framework | React 19 + TypeScript + Vite | Fast dev loop and strict types |
 | Styling | Tailwind CSS v4 + Lucide icons | Clean modern UI without custom CSS sprawl |
 | State | Zustand | Small API and easy persistence |
-| Storage | Browser localStorage / IndexedDB | No backend needed and works offline |
+| Storage | PostgreSQL for accounts, browser localStorage for guests | Data follows the student, and an account stays optional |
+| Accounts | Express 5 + PostgreSQL (PGlite locally), Google sign-in checked on the server, cookie sessions | See [docs/backend.md](docs/backend.md) |
 | Canvas | iCal (.ics) parser | Works without university IT or OAuth |
 | Tests | Vitest + Testing Library | Same config as Vite |
 | Lint | Oxlint | Very fast |
@@ -62,6 +63,22 @@ The [Privacy Policy](public/privacy.html) and [Terms of Service](public/terms.ht
 
 
 
+### Email accounts and admin roles (optional)
+
+An accounts API in `server/` adds email and password sign-up and login, plus **admin** and **user** roles. Admins get an Admin page to manage accounts. No database install is needed locally:
+
+```bash
+npm run dev:api   # API on :8787, with an embedded Postgres and test accounts
+npm run dev       # app on :5173, which proxies /api to the API
+```
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@collegehub.test` | `Admin-Test-2026!` |
+| User | `student@collegehub.test` | `Student-Test-2026!` |
+
+These test accounts are created only outside production. Security design, database schema, setup, hosting limits and backups are in [docs/backend.md](docs/backend.md).
+
 ## Scripts
 
 | Command | What it does |
@@ -73,6 +90,11 @@ The [Privacy Policy](public/privacy.html) and [Terms of Service](public/terms.ht
 | `npm test` | Run Vitest in watch mode |
 | `npm run test:run` | Run tests once |
 | `npm run check` | Lint + test + build (run before pushing) |
+| `npm run dev:api` | Start the accounts API and reload it on changes |
+| `npm start` | Start the accounts API (production) |
+| `npm run db:migrate` | Apply database migrations |
+| `npm run db:seed` | Create the test accounts (refused in production) |
+| `npm run db:create-admin` | Create or promote an admin from `ADMIN_EMAIL`, `ADMIN_NAME` and `ADMIN_PASSWORD` |
 
 ## Project structure
 
@@ -91,7 +113,8 @@ src/
   data/           Demo seed data
   types/          Shared TypeScript types
   test/           Test setup
-docs/             Architecture notes, decisions and screenshots
+server/           Accounts API (Express, Postgres, sessions, RBAC) and migrations
+docs/             Architecture notes, decisions, backend guide and screenshots
 ```
 
 ## Roadmap

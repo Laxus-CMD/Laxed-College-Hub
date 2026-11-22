@@ -11,7 +11,10 @@ export type DialogState =
       preset?: { days: Weekday[]; start: string; end: string; courseId?: string }
     }
   | { type: 'settings' }
+  | { type: 'password' }
+  | { type: 'delete-account' }
   | { type: 'ics' }
+  | { type: 'import' }
 
 export interface Toast {
   message: string
