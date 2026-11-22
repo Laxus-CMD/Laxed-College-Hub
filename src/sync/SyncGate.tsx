@@ -49,7 +49,7 @@ export function SyncAlert() {
   return (
     <div
       role="alert"
-      className="mb-6 flex flex-wrap items-center gap-3.5 rounded-2xl border border-line bg-surface py-3 pr-3 pl-5 shadow-card dark:border-transparent"
+      className="mb-6 flex flex-wrap items-center gap-3.5 rounded-2xl border border-line bg-surface py-3 pr-3 pl-5 shadow-card"
     >
       <p className="min-w-56 flex-1 text-[13.5px] text-bad">
         {status === 'retrying' ? 'Your latest changes are not saved yet. Keep this page open while we keep trying.' : message}

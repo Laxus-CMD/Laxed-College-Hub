@@ -123,23 +123,101 @@ describe('Sign in', () => {
 })
 
 describe('Appearance', () => {
+  const shown = () => document.documentElement.dataset.theme
+  const saved = () => JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) ?? '{}').state
+  const themeWindow = () => screen.queryByRole('dialog', { name: 'Appearance' })
+
   it('switches between light and dark and remembers the choice', async () => {
     const u = user()
     render(<App />)
-    // jsdom has no prefers-color-scheme, so System resolves to light.
-    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(shown()).toBe('matcha-light')
 
     await u.click(screen.getByRole('radio', { name: 'Dark' }))
-    expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY) ?? '{}').state.theme).toBe('dark')
+    expect(shown()).toBe('matcha-dark')
+    expect(saved()).toEqual({ family: 'matcha', theme: 'dark' })
 
     await u.click(screen.getByRole('button', { name: 'Switch to light mode' }))
-    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(shown()).toBe('matcha-light')
     expect(screen.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
 
     // The choice survives moving between pages.
     await u.click(screen.getByRole('link', { name: 'Notes' }))
-    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(shown()).toBe('matcha-light')
+  })
+
+  it('applies a theme at once, in the current mode, and remembers it', async () => {
+    const u = user()
+    render(<App />)
+    await u.click(screen.getByRole('button', { name: 'Themes' }))
+    const win = within(themeWindow()!)
+    expect(win.getAllByRole('radio', { name: /, / })).toHaveLength(5)
+    const matcha = win.getByRole('radio', { name: 'Matcha, Ceremonial Matcha' })
+    expect(matcha).toBeChecked()
+    expect(matcha).toHaveFocus()
+
+    await u.click(win.getByRole('radio', { name: 'Coffee, Oat Latte' }))
+    expect(shown()).toBe('coffee-light')
+    expect(matcha).not.toBeChecked()
+
+    // The previews and names follow the mode.
+    await u.click(win.getByRole('radio', { name: 'Dark' }))
+    expect(shown()).toBe('coffee-dark')
+    expect(win.getByRole('radio', { name: 'Coffee, Dark Espresso' })).toBeChecked()
+    expect(themeWindow()!.querySelectorAll('[data-theme$="-dark"]')).toHaveLength(5)
+    expect(saved()).toEqual({ family: 'coffee', theme: 'dark' })
+  })
+
+  it('closes with the red dot, Escape or a click outside, and gives focus back', async () => {
+    const u = user()
+    render(<App />)
+    const button = screen.getByRole('button', { name: 'Themes' })
+
+    await u.click(button)
+    await u.click(within(themeWindow()!).getByRole('button', { name: 'Close' }))
+    expect(themeWindow()).toBeNull()
+    expect(button).toHaveFocus()
+
+    await u.click(button)
+    await u.keyboard('{Escape}')
+    expect(themeWindow()).toBeNull()
+
+    await u.click(button)
+    await u.click(screen.getByTestId('appearance-backdrop'))
+    expect(themeWindow()).toBeNull()
+    expect(button).toHaveFocus()
+  })
+
+  it('keeps Tab inside the window', async () => {
+    const u = user()
+    render(<App />)
+    await u.click(screen.getByRole('button', { name: 'Themes' }))
+    for (let i = 0; i < 12; i++) {
+      await u.tab()
+      expect(themeWindow()).toContainElement(document.activeElement as HTMLElement)
+    }
+  })
+
+  it('opens over Your data without losing what was typed there', async () => {
+    const u = user()
+    render(<App />)
+    await u.click(screen.getAllByRole('button', { name: 'Your data' })[0]!)
+    const data = screen.getByRole('dialog', { name: 'Your data' })
+    const name = within(data).getByLabelText('Your name')
+    await u.type(name, 'Sam')
+    await u.click(within(data).getByRole('button', { name: 'Themes' }))
+    await u.keyboard('{Escape}')
+    expect(themeWindow()).toBeNull()
+    expect(name).toBeInTheDocument()
+    expect(name).toHaveValue('Sam')
+  })
+
+  it('is on the sign-in page too', async () => {
+    useAuthStore.setState({ account: null, guest: false })
+    const u = user()
+    render(<App />)
+    await u.click(screen.getByRole('button', { name: 'Themes' }))
+    await u.click(within(themeWindow()!).getByRole('radio', { name: 'Navy, Harbor Mist' }))
+    expect(shown()).toBe('navy-light')
   })
 })
 

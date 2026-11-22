@@ -4,23 +4,39 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#f5f5f7" />
+    <meta name="theme-color" content="#f3f7f2" />
     <meta
       name="description"
       content="A student dashboard for schedule, deadlines, notes and grades."
     />
     <meta name="google-site-verification" content="yaUlITjyNKCvg8lJEBAjjDtIz_wzrc_GV_rVx1Yw2Ig" />
+    <link rel="stylesheet" href="/themes.css" />
     <title>College Hub</title>
     <script>
       // Apply the saved theme before the first paint so there is no flash.
-      // Keep the storage key in sync with src/store/useThemeStore.ts.
+      // Keep in sync with src/store/useThemeStore.ts and src/lib/themes.ts. Tested in tests/themes.test.ts.
+      var id = 'matcha-light'
       try {
-        var saved = JSON.parse(localStorage.getItem('college-hub.theme') || 'null')
-        var pref = (saved && saved.state && saved.state.theme) || 'system'
-        var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#000000' : '#f5f5f7')
+        var saved = (JSON.parse(localStorage.getItem('college-hub.theme') || 'null') || {}).state || {}
+        var family = /^(matcha|monochrome|pink|coffee|navy)$/.test(saved.family) ? saved.family : 'matcha'
+        var dark = saved.theme === 'dark' || (saved.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        id = family + (dark ? '-dark' : '-light')
       } catch (e) {}
+      document.documentElement.dataset.theme = id
+      // The color of the browser's own bar on phones: --bg-page of each theme.
+      var page = {
+        'matcha-light': '#f3f7f2',
+        'matcha-dark': '#111a13',
+        'monochrome-light': '#fafafa',
+        'monochrome-dark': '#0a0a0a',
+        'pink-light': '#fff5f7',
+        'pink-dark': '#1f0f17',
+        'coffee-light': '#f7f3ee',
+        'coffee-dark': '#18120e',
+        'navy-light': '#f1f5f9',
+        'navy-dark': '#0b132b',
+      }
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', page[id])
     </script>
   </head>
   <body>
@@ -31,7 +47,7 @@
     <div id="root">
       <main style="max-width: 560px; margin: 0 auto; padding: 64px 20px; text-align: center">
         <h1 style="margin: 0; font-size: 28px; letter-spacing: -0.02em">College Hub</h1>
-        <p style="color: var(--color-muted, #6e6e73)">
+        <p style="color: var(--text-secondary)">
           A free student dashboard for class schedules, deadlines, notes and grades. Sign in with Google to keep
           your data in your account, or continue without one and keep it in your own browser.
         </p>

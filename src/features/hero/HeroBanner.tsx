@@ -41,7 +41,7 @@ function Shell({
   return (
     <section
       aria-label="Right now"
-      className="relative flex min-h-[248px] flex-col overflow-hidden rounded-[22px] border border-line bg-surface px-6 pt-6 pb-6 shadow-card sm:px-8 sm:pt-7 dark:border-transparent"
+      className="relative flex min-h-[248px] flex-col overflow-hidden rounded-[22px] border border-line bg-surface px-6 pt-6 pb-6 shadow-card sm:px-8 sm:pt-7"
     >
       <ClockFace
         now={now}

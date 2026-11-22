@@ -6,15 +6,19 @@
     <meta name="description" content="How College Hub handles your information, including data from Sign in with Google." />
     <title>Privacy Policy · College Hub</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="themes.css" />
     <link rel="stylesheet" href="legal.css" />
     <script>
-      // Match the app's saved Light / Dark / System choice.
+      // Apply the saved theme before the first paint so there is no flash.
+      // Keep in sync with src/store/useThemeStore.ts and src/lib/themes.ts. Tested in tests/themes.test.ts.
+      var id = 'matcha-light'
       try {
-        var saved = JSON.parse(localStorage.getItem('college-hub.theme') || 'null')
-        var pref = (saved && saved.state && saved.state.theme) || 'system'
-        var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        var saved = (JSON.parse(localStorage.getItem('college-hub.theme') || 'null') || {}).state || {}
+        var family = /^(matcha|monochrome|pink|coffee|navy)$/.test(saved.family) ? saved.family : 'matcha'
+        var dark = saved.theme === 'dark' || (saved.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        id = family + (dark ? '-dark' : '-light')
       } catch (e) {}
+      document.documentElement.dataset.theme = id
     </script>
   </head>
   <body>

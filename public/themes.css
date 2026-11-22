@@ -1,0 +1,176 @@
+/*
+ * The color themes. One source for the app, the theme previews and the legal pages.
+ *
+ * <html data-theme="family-mode"> picks one. Putting data-theme on any other element shows that
+ * theme inside it, which is how the previews in the Appearance window work.
+ * Linked from the HTML pages, so the colors are ready before the first paint.
+ *
+ * Adding a theme: add its two palettes here, then list it in src/lib/themes.ts and in the
+ * inline scripts of index.html, privacy.html and terms.html.
+ */
+
+/* Matcha */
+:root,
+[data-theme='matcha-light'] {
+  --bg-page: #f3f7f2;
+  --bg-surface: #ffffff;
+  --bg-subtle: #e6efe4;
+  --border-default: #d5e2d2;
+  --text-primary: #1a2e1d;
+  --text-secondary: #435c47;
+  --text-muted: #6c8570;
+  --accent-primary: #3f7d4c;
+  --accent-hover: #2e6139;
+  --accent-contrast: #ffffff;
+  /* Accent-colored text. Darker than the accent where the accent is too light to read when small. */
+  --accent-text: #2e6139;
+}
+
+[data-theme='matcha-dark'] {
+  --bg-page: #111a13;
+  --bg-surface: #19261c;
+  --bg-subtle: #223326;
+  --border-default: #2d4232;
+  --text-primary: #ecf3ed;
+  --text-secondary: #b4c6b7;
+  --text-muted: #9cb3a0;
+  --accent-primary: #74b882;
+  --accent-hover: #8cc998;
+  --accent-contrast: #0e1a11;
+  --accent-text: #74b882;
+}
+
+/* Monochrome */
+[data-theme='monochrome-light'] {
+  --bg-page: #fafafa;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f0f0f1;
+  --border-default: #e4e4e7;
+  --text-primary: #09090b;
+  --text-secondary: #525259;
+  --text-muted: #71717a;
+  --accent-primary: #18181b;
+  --accent-hover: #3f3f46;
+  --accent-contrast: #ffffff;
+  --accent-text: #18181b;
+}
+
+[data-theme='monochrome-dark'] {
+  --bg-page: #0a0a0a;
+  --bg-surface: #141414;
+  --bg-subtle: #1f1f1f;
+  --border-default: #262626;
+  --text-primary: #fafafa;
+  --text-secondary: #bcbcc2;
+  --text-muted: #a1a1aa;
+  --accent-primary: #ffffff;
+  --accent-hover: #d4d4d8;
+  --accent-contrast: #09090b;
+  --accent-text: #ffffff;
+}
+
+/* Pink */
+[data-theme='pink-light'] {
+  --bg-page: #fff5f7;
+  --bg-surface: #ffffff;
+  --bg-subtle: #fde4f0;
+  --border-default: #fbcfe8;
+  --text-primary: #3b0d24;
+  --text-secondary: #6d2b4b;
+  --text-muted: #83385b;
+  --accent-primary: #db2777;
+  --accent-hover: #b42062;
+  --accent-contrast: #ffffff;
+  --accent-text: #b42062;
+}
+
+[data-theme='pink-dark'] {
+  --bg-page: #1f0f17;
+  --bg-surface: #2d1622;
+  --bg-subtle: #3a1c2b;
+  --border-default: #4c2438;
+  --text-primary: #fce7f3;
+  --text-secondary: #e1b4cb;
+  --text-muted: #d69eba;
+  --accent-primary: #f472b6;
+  --accent-hover: #f68ec5;
+  --accent-contrast: #1f0f17;
+  --accent-text: #f472b6;
+}
+
+/* Coffee */
+[data-theme='coffee-light'] {
+  --bg-page: #f7f3ee;
+  --bg-surface: #fffdfb;
+  --bg-subtle: #eee6dd;
+  --border-default: #e3d7c8;
+  --text-primary: #2c1e16;
+  --text-secondary: #5b473a;
+  --text-muted: #6f5849;
+  --accent-primary: #9c5a2b;
+  --accent-hover: #804a23;
+  --accent-contrast: #ffffff;
+  --accent-text: #804a23;
+}
+
+[data-theme='coffee-dark'] {
+  --bg-page: #18120e;
+  --bg-surface: #241b15;
+  --bg-subtle: #2d221b;
+  --border-default: #3b2d23;
+  --text-primary: #f3ece4;
+  --text-secondary: #c6b6a7;
+  --text-muted: #b39f8d;
+  --accent-primary: #d49a6a;
+  --accent-hover: #ddae88;
+  --accent-contrast: #18120e;
+  --accent-text: #d49a6a;
+}
+
+/* Navy */
+[data-theme='navy-light'] {
+  --bg-page: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-subtle: #e0e7ee;
+  --border-default: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #364256;
+  --text-muted: #475569;
+  --accent-primary: #1d4ed8;
+  --accent-hover: #1840b1;
+  --accent-contrast: #ffffff;
+  --accent-text: #1d4ed8;
+}
+
+[data-theme='navy-dark'] {
+  --bg-page: #0b132b;
+  --bg-surface: #1c2541;
+  --bg-subtle: #27325a;
+  --border-default: #2b3a67;
+  --text-primary: #f0f4f8;
+  --text-secondary: #b7c7d6;
+  --text-muted: #9fb3c8;
+  --accent-primary: #38bdf8;
+  --accent-hover: #60caf9;
+  --accent-contrast: #0b132b;
+  --accent-text: #38bdf8;
+}
+
+/* Same in every theme of a mode. */
+:root {
+  color-scheme: light;
+  --status-good: #1e7b34;
+  --status-warn: #a84b00;
+  --status-bad: #d70015;
+}
+
+:root[data-theme$='-dark'] {
+  color-scheme: dark;
+  --status-good: #30d158;
+  --status-warn: #ff9f0a;
+  --status-bad: #ff5c52;
+}
+
+html {
+  background: var(--bg-page);
+}

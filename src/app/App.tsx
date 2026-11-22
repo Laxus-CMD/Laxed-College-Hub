@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react'
+import { AppearanceHost } from '@/app/AppearanceWindow'
 import { DialogHost } from '@/app/DialogHost'
 import OverviewPage from '@/app/OverviewPage'
 import { SEARCH_INPUT_ID } from '@/app/SearchBox'
@@ -78,7 +79,14 @@ export default function App() {
     if (window.scrollY > 0) window.scrollTo({ top: 0 })
   }, [route])
 
-  if (!signedIn) return <LoginPage />
+  if (!signedIn) {
+    return (
+      <>
+        <LoginPage />
+        <AppearanceHost />
+      </>
+    )
+  }
   if (hasAccount && !dataReady) return <SyncGate />
 
   return (
@@ -92,6 +100,7 @@ export default function App() {
       </main>
       <ImportOffer />
       <DialogHost />
+      <AppearanceHost />
       <ToastHost />
     </div>
   )
