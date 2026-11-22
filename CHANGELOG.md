@@ -2,6 +2,22 @@
 
 Patch notes for College Hub. Newest first.
 
+## 2026-11-22 · Themes
+
+### New
+
+- **Five themes:** Matcha, Monochrome, Pink, Coffee and Navy, each with a light and a dark version. Open them with the palette button at the top, from **Your data**, or on the sign-in page. Live previews show each theme's real colors, and the choice is remembered in this browser.
+- **Ceremonial Matcha is the new default.** If you picked Light, Dark or System before, that choice is kept.
+- The Privacy Policy and Terms pages follow the theme.
+
+### Fixed
+
+- Closing a dialog by clicking outside it returns keyboard focus to where it was.
+
+### Under the hood
+
+- Palettes live in `public/themes.css` as CSS variables under `[data-theme]`. The tokens in `src/index.css` are built from them. Tests check that every palette is complete and readable, and that the first paint picks the right one.
+
 ## 2026-11-22 · Email accounts and admin roles
 
 ### New

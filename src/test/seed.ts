@@ -21,10 +21,11 @@ export function resetStores(now: Date): void {
   useGradeStore.setState({ components: demo.components, overrides: {}, targets: {}, prior: { cgpa: null, units: null } })
   useSettingsStore.setState({ name: '', isDemo: true, bannerDismissed: false })
   useAuthStore.setState({ account: null, guest: true })
-  useThemeStore.setState({ theme: 'system' })
+  useThemeStore.setState({ family: 'matcha', theme: 'light' })
   delete document.documentElement.dataset.theme
   useUiStore.setState({
     dialog: null,
+    appearanceOpen: false,
     drawerSessionId: null,
     taskCourse: '',
     selectedNoteId: null,

@@ -39,7 +39,7 @@ export function WeeklyGrid({ now }: { now: Date }) {
   const gridCols = { gridTemplateColumns: `56px repeat(${cols}, minmax(112px, 1fr))`, minWidth: 56 + cols * 112 }
 
   return (
-    <div className="max-h-[calc(100vh-200px)] min-h-[420px] overflow-auto rounded-2xl border border-line bg-surface shadow-card dark:border-transparent">
+    <div className="max-h-[calc(100vh-200px)] min-h-[420px] overflow-auto rounded-2xl border border-line bg-surface shadow-card">
       <div className="sticky top-0 z-[4] grid border-b border-line bg-surface" style={gridCols}>
         <div />
         {days.map((d) => {

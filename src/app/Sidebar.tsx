@@ -5,7 +5,7 @@ import { Dot } from '@/components/ui/Chip'
 import { cn } from '@/lib/cn'
 import { navigate, type Route } from '@/lib/route'
 import { SearchBox } from '@/app/SearchBox'
-import { ThemeSegmented, ThemeToggleButton } from '@/app/ThemeToggle'
+import { ThemesButton, ThemeSegmented, ThemeToggleButton } from '@/app/ThemeToggle'
 import { Avatar } from '@/features/auth/Avatar'
 import { useIsAdmin, useProfile } from '@/store/useAuthStore'
 import { useScheduleStore } from '@/store/useScheduleStore'
@@ -51,6 +51,7 @@ export function Sidebar({ route }: { route: Route }) {
           <GraduationCap className="size-[18px]" aria-hidden="true" />
         </span>
         <span className="flex-1 text-[15px] font-semibold tracking-[-0.01em]">College Hub</span>
+        <ThemesButton />
         <ThemeToggleButton className="lg:hidden" />
         <IconButton label="Your data" onClick={() => openDialog({ type: 'settings' })} className="lg:hidden">
           <Settings className="size-[18px]" aria-hidden="true" />

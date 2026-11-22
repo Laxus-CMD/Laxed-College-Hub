@@ -35,7 +35,7 @@ export function SegmentedTabs<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               'flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[8px] px-3.5 py-1 text-[13px] font-medium transition-[background-color,color,box-shadow] duration-200',
-              active ? 'bg-raised text-ink shadow-thumb dark:bg-[#636366]' : 'text-muted hover:text-ink',
+              active ? 'bg-thumb text-ink shadow-thumb' : 'text-muted hover:text-ink',
             )}
           >
             {o.label}

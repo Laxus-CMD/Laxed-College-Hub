@@ -21,6 +21,7 @@ export function SettingsDialog() {
   const setName = useSettingsStore((s) => s.setName)
   const user = useProfile()
   const account = useAuthStore((s) => s.account)
+  const openAppearance = useUiStore((s) => s.openAppearance)
   const openDialog = useUiStore((s) => s.openDialog)
   const signOut = useAuthStore((s) => s.signOut)
   const [draft, setDraft] = useState(name)
@@ -108,7 +109,12 @@ export function SettingsDialog() {
         </p>
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-medium text-muted">Appearance</span>
-          <ThemeSegmented showLabels />
+          <div className="flex flex-wrap items-center gap-2.5">
+            <ThemeSegmented showLabels className="flex-1" />
+            <Button size="sm" aria-haspopup="dialog" onClick={openAppearance}>
+              Themes
+            </Button>
+          </div>
         </div>
         <div className="h-px bg-line" />
         <div className="flex flex-wrap gap-2.5">

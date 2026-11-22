@@ -130,7 +130,7 @@ export default function AssignmentsPage() {
       <form
         onSubmit={onQuickAdd}
         aria-label="Add a task"
-        className="mb-4 grid gap-2.5 rounded-2xl border border-line bg-surface p-3 shadow-card dark:border-transparent sm:grid-cols-[minmax(0,1fr)_190px_150px_auto] max-sm:grid-cols-2"
+        className="mb-4 grid gap-2.5 rounded-2xl border border-line bg-surface p-3 shadow-card sm:grid-cols-[minmax(0,1fr)_190px_150px_auto] max-sm:grid-cols-2"
       >
         <Input
           ref={titleInput}

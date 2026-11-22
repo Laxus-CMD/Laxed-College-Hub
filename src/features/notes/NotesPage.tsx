@@ -210,7 +210,7 @@ export default function NotesPage() {
                       onClick={() => selectNote(n.id)}
                       className={cn(
                         'flex w-full cursor-pointer flex-col gap-1.5 rounded-2xl border px-4 py-3 text-left transition-colors',
-                        isActive ? 'border-accent/40 bg-accent/10' : 'border-line bg-surface shadow-card hover:border-line-strong dark:border-transparent dark:hover:bg-raised',
+                        isActive ? 'border-accent/40 bg-accent/10' : 'border-line bg-surface shadow-card hover:border-line-strong dark:hover:bg-raised',
                       )}
                     >
                       <span className="truncate font-medium">{n.title || 'Untitled note'}</span>

@@ -1,10 +1,8 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { IconButton } from '@/components/ui/Button'
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+import { closeOnPress, useModalFocus } from '@/components/ui/useModalFocus'
 
 interface DialogProps {
   title: string
@@ -19,37 +17,7 @@ interface DialogProps {
 export function Dialog({ title, onClose, children, variant = 'modal', wide = false }: DialogProps) {
   const panel = useRef<HTMLDivElement>(null)
   const titleId = useId()
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    const el = panel.current
-    const target =
-      el?.querySelector<HTMLElement>('[data-autofocus]') ??
-      el?.querySelector<HTMLElement>('input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea') ??
-      el
-    target?.focus()
-    return () => previous?.focus?.()
-  }, [])
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      onClose()
-      return
-    }
-    if (e.key !== 'Tab' || !panel.current) return
-    const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
+  const onKeyDown = useModalFocus(panel, onClose)
 
   const drawer = variant === 'drawer'
   return (
@@ -59,7 +27,7 @@ export function Dialog({ title, onClose, children, variant = 'modal', wide = fal
     >
       <div
         className="absolute inset-0 animate-[fade-in_180ms_ease-out] bg-black/25 backdrop-blur-[6px] dark:bg-black/55"
-        onMouseDown={onClose}
+        onMouseDown={closeOnPress(onClose)}
         aria-hidden="true"
       />
       <div

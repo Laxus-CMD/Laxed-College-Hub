@@ -2,29 +2,50 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { persistStorage } from '@/lib/storage'
+import {
+  DEFAULT_FAMILY,
+  DEFAULT_MODE,
+  isFamily,
+  isModePreference,
+  themeId,
+  type Mode,
+  type ModePreference,
+  type ThemeFamily,
+} from '@/lib/themes'
 
-export type ThemePreference = 'light' | 'dark' | 'system'
-export type Theme = 'light' | 'dark'
-
-/** Must match the key read by the inline script in index.html. */
+/** Must match the key read by the inline scripts in index.html, privacy.html and terms.html. */
 export const THEME_STORAGE_KEY = 'college-hub.theme'
 
 interface ThemeState {
-  theme: ThemePreference
-  setTheme: (theme: ThemePreference) => void
+  family: ThemeFamily
+  setFamily: (family: ThemeFamily) => void
+  /** Light, dark or follow the device. Saved as `theme` since before there were theme families. */
+  theme: ModePreference
+  setTheme: (theme: ModePreference) => void
 }
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'system',
+      family: DEFAULT_FAMILY,
+      setFamily: (family) => set({ family }),
+      theme: DEFAULT_MODE,
       setTheme: (theme) => set({ theme }),
     }),
     {
       name: THEME_STORAGE_KEY,
       version: 1,
       storage: persistStorage,
-      partialize: (s) => ({ theme: s.theme }),
+      partialize: (s) => ({ family: s.family, theme: s.theme }),
+      // Anything missing or unknown becomes the default.
+      merge: (saved, current) => {
+        const { family, theme } = (saved ?? {}) as Partial<Record<'family' | 'theme', unknown>>
+        return {
+          ...current,
+          family: isFamily(family) ? family : DEFAULT_FAMILY,
+          theme: isModePreference(theme) ? theme : DEFAULT_MODE,
+        }
+      },
     },
   ),
 )
@@ -43,33 +64,31 @@ function subscribeSystem(onChange: () => void): () => void {
 
 const systemIsDark = () => systemQuery()?.matches ?? false
 
-export function resolveTheme(pref: ThemePreference, systemDark: boolean): Theme {
-  return pref === 'system' ? (systemDark ? 'dark' : 'light') : pref
-}
-
-/** The theme actually showing, following the OS when the preference is "system". */
-export function useResolvedTheme(): Theme {
+/** Light or dark, whichever is actually showing. */
+export function useResolvedMode(): Mode {
   const pref = useThemeStore((s) => s.theme)
   const systemDark = useSyncExternalStore(subscribeSystem, systemIsDark, () => false)
-  return resolveTheme(pref, systemDark)
+  return pref === 'system' ? (systemDark ? 'dark' : 'light') : pref
 }
 
 let switchTimer: ReturnType<typeof setTimeout> | undefined
 
-/** Writes the resolved theme onto <html>. Mount once, near the root. */
-export function useApplyTheme(): Theme {
-  const theme = useResolvedTheme()
+/** Writes the theme onto <html>. Mount once, near the root. */
+export function useApplyTheme(): void {
+  const family = useThemeStore((s) => s.family)
+  const mode = useResolvedMode()
   useEffect(() => {
     const root = document.documentElement
-    if (root.dataset.theme === theme) return
+    const id = themeId(family, mode)
+    if (root.dataset.theme === id) return
     // Only crossfade on a real switch, not on the first paint.
     if (root.dataset.theme) {
       root.classList.add('theme-switching')
       clearTimeout(switchTimer)
       switchTimer = setTimeout(() => root.classList.remove('theme-switching'), 260)
     }
-    root.dataset.theme = theme
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#000000' : '#f5f5f7')
-  }, [theme])
-  return theme
+    root.dataset.theme = id
+    const page = getComputedStyle(root).getPropertyValue('--bg-page').trim()
+    if (page) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', page)
+  }, [family, mode])
 }

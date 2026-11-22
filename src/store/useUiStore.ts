@@ -26,6 +26,10 @@ interface UiState {
   dialog: DialogState
   openDialog: (d: Exclude<DialogState, null>) => void
   closeDialog: () => void
+  /** The Appearance window. Separate from `dialog`, so it can open on top of one. */
+  appearanceOpen: boolean
+  openAppearance: () => void
+  closeAppearance: () => void
   drawerSessionId: string | null
   openDrawer: (sessionId: string) => void
   closeDrawer: () => void
@@ -44,6 +48,9 @@ export const useUiStore = create<UiState>()((set) => ({
   dialog: null,
   openDialog: (dialog) => set({ dialog }),
   closeDialog: () => set({ dialog: null }),
+  appearanceOpen: false,
+  openAppearance: () => set({ appearanceOpen: true }),
+  closeAppearance: () => set({ appearanceOpen: false }),
   drawerSessionId: null,
   openDrawer: (drawerSessionId) => set({ drawerSessionId }),
   closeDrawer: () => set({ drawerSessionId: null }),

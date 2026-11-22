@@ -1,12 +1,12 @@
 import { CalendarDays, ChartColumn, GraduationCap, NotebookPen, PencilLine } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { ThemeToggleButton } from '@/app/ThemeToggle'
+import { ThemesButton, ThemeToggleButton } from '@/app/ThemeToggle'
 import { AccountForm } from '@/features/auth/AccountForm'
 import { accountsApi, ApiError, type SignInOptions } from '@/features/auth/api'
 import { GOOGLE_CLIENT_ID, loadGoogleIdentity } from '@/features/auth/google'
 import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { useAuthStore } from '@/store/useAuthStore'
-import { useResolvedTheme } from '@/store/useThemeStore'
+import { useResolvedMode } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useSyncStore } from '@/sync/useSyncStore'
 
@@ -22,7 +22,7 @@ type Status = 'loading' | 'ready' | 'error' | 'unconfigured'
 /** Google's own button, so it follows their branding rules and handles the popup. */
 function GoogleButton({ onError }: { onError: (message: string | null) => void }) {
   const slot = useRef<HTMLDivElement>(null)
-  const theme = useResolvedTheme()
+  const mode = useResolvedMode()
   const [status, setStatus] = useState<Status>(GOOGLE_CLIENT_ID ? 'loading' : 'unconfigured')
 
   useEffect(() => {
@@ -50,7 +50,7 @@ function GoogleButton({ onError }: { onError: (message: string | null) => void }
         slot.current.replaceChildren()
         gis.renderButton(slot.current, {
           type: 'standard',
-          theme: theme === 'dark' ? 'filled_black' : 'outline',
+          theme: mode === 'dark' ? 'filled_black' : 'outline',
           size: 'large',
           text: 'continue_with',
           shape: 'pill',
@@ -65,7 +65,7 @@ function GoogleButton({ onError }: { onError: (message: string | null) => void }
     return () => {
       cancelled = true
     }
-  }, [theme, onError])
+  }, [mode, onError])
 
   if (status === 'unconfigured') {
     return (
@@ -118,11 +118,14 @@ export default function LoginPage() {
 
   return (
     <div className="relative grid min-h-svh place-items-center px-4 py-10">
-      <ThemeToggleButton className="absolute top-[max(16px,env(safe-area-inset-top))] right-4" />
+      <div className="absolute top-[max(16px,env(safe-area-inset-top))] right-4 flex gap-1">
+        <ThemesButton />
+        <ThemeToggleButton />
+      </div>
       <main className="w-full max-w-[400px] animate-[fade-in_200ms_ease-out]">
         <section
           aria-labelledby="login-title"
-          className="rounded-3xl border border-line bg-surface px-6 py-8 shadow-card dark:border-transparent sm:px-8"
+          className="rounded-3xl border border-line bg-surface px-6 py-8 shadow-card sm:px-8"
         >
           <div className="flex flex-col items-center text-center">
             <span className="grid size-14 place-items-center rounded-2xl bg-accent-fill text-on-accent shadow-thumb">

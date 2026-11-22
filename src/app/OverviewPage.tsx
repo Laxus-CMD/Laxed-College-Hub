@@ -45,7 +45,7 @@ export default function OverviewPage() {
         }
       />
       {isDemo && !dismissed ? (
-        <div className="mb-6 flex flex-wrap items-center gap-3.5 rounded-2xl border border-line bg-surface py-3 pr-3 pl-5 shadow-card dark:border-transparent">
+        <div className="mb-6 flex flex-wrap items-center gap-3.5 rounded-2xl border border-line bg-surface py-3 pr-3 pl-5 shadow-card">
           <p className="min-w-56 flex-1 text-[13.5px] text-muted">You are looking at sample data. Replace it with your own courses, classes and tasks.</p>
           <Button size="sm" variant="primary" onClick={clearAllData}>
             Clear sample data
