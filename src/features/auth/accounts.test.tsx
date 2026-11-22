@@ -77,7 +77,7 @@ describe('email accounts', () => {
     window.location.hash = 'admin'
     render(<App />)
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: /good morning/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /good (morning|afternoon|evening)/i })).toBeInTheDocument()
   })
 
   it('shows field errors from sign-up', async () => {

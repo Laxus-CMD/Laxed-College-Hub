@@ -1,6 +1,6 @@
 # Accounts backend
 
-College Hub has an accounts API in `server/`. It adds email and password sign-up and login, and two roles: **admin** and **user**. Google sign-in and "Continue without an account" still work as before. Courses, tasks, notes and grades still live in the browser. The API stores only accounts.
+College Hub has an accounts API in `server/`. It adds email and password sign-up and login, and two roles: **admin** and **user**. Google sign-in and "Continue without an account" still work as before. The API can also store each student's courses, classes, tasks, notes and grades (see [Student data](#student-data)). The app does not use that part yet: it still saves to the browser.
 
 ```
 Browser ──/api/*──> Vercel Function (prod) or Vite proxy (dev) ──> Express API (server/) ──> PostgreSQL
@@ -64,7 +64,7 @@ Open the app and sign in with a test account (see [Test accounts](#3-test-accoun
 - Every body is parsed with a strict Zod schema (`server/validation.ts`). Unknown keys such as `"role": "admin"` are rejected with 400.
 - Emails are trimmed, lower-cased and checked against a 254-character limit. A case-insensitive unique index (`lower(email)`) backs this up.
 - Names are 1 to 60 letters, numbers, spaces and `. , ' -`. Markup and control characters are rejected.
-- JSON bodies are capped at 10 KB. Wrong content types get 415. All SQL is parameterized.
+- JSON bodies are capped at 10 KB, except saves (4 MB, and only when signed in). Wrong content types get 415. All SQL is parameterized.
 - Errors come back as `{ error, fields }`. The login form shows each field's error under that field.
 
 ### Abuse protection
@@ -120,7 +120,38 @@ schema_migrations  name PK, applied_at
 
 `CHECK` constraints enforce the email and name lengths again inside the database. Indexes cover `lower(email)`, `role_id`, `sessions.user_id`, `sessions.expires_at` and `audit_log.created_at`.
 
+`004_student_data.sql` adds the student's own data. Every key starts with `user_id`, and references include it, so a row cannot point at another student's rows.
+
+```
+student_profiles   user_id PK → users ON DELETE CASCADE, revision, display_name, is_demo,
+                   banner_dismissed, grade_scale jsonb, prior_cgpa, prior_units
+courses            (user_id, id) PK, code, name, units, color, professor fields,
+                   grade_override, grade_target
+class_sessions     (user_id, id) PK, course (cascade), days, start_time, end_time, room, building
+tasks              (user_id, id) PK, course (set null), kind, title, due, done, weight, source,
+                   external_id (unique per student)
+notes              (user_id, id) PK, course and class (set null), title, body, session_date,
+                   created_at, updated_at, text_revision, text_client
+grade_components   (user_id, id) PK, course (cascade), name, weight, score
+```
+
 A role can only be one of the two rows in `roles`, so adding a role (for example `instructor`) is just a new migration plus a new `requireRole(...)`.
+
+### Student data
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/data` | Everything the student has saved, and its `revision`. With `?since=N`, `data` is null if nothing changed since revision N. |
+| `POST /api/data/sync` | Applies `upsert`, `remove` and `profile` changes in one transaction: all of it or none of it. |
+
+- **Isolation:** the user id only ever comes from the session cookie. There is no parameter for it.
+- **Whole or nothing:** one invalid record answers 400 and saves nothing. Saves for one student take turns (row lock on `student_profiles`).
+- **Two devices:** each save sends the `baseRevision` it was made on. If another device saved first, the answer includes everything, so the browser can catch up. The last save of a record wins, except for a note's text: when two devices edit it at once, the second one is kept as a copy and reported in `noteCopies`. A delete never removes a note that another device just edited.
+- **Retries:** sending the same save again is safe. `clientId` tells a retry from another device.
+- **Dangling links:** classes and components without a course are dropped, and tasks and notes are unlinked. The answer then includes everything.
+- **Notes:** leave out `title` and `body` when only the links changed.
+- **Limits:** 200 courses, 500 classes, 5,000 tasks, 3,000 notes, 3,000 components and 3 MB in total for each account (422 beyond that), 100,000 characters in a note, 4 MB in a request, and 120 saves a minute. Vercel allows 4.5 MB.
+- **Privacy:** answers are `no-store`. Postgres error details, which can contain the row, are kept out of the logs. Admin routes do not return student data.
 
 ### Migrations
 
@@ -202,7 +233,7 @@ The GitHub Pages mirror has no API, so email sign-in there shows "offline". The 
 | `SCRYPT_N` | 131072. Use 65536 only below 512 MB. | A lower N is weaker but still acceptable. |
 | `DB_POOL_MAX` | 10 for each instance | Keep `instances × pool` under your Postgres connection limit. Use the provider's pooler (PgBouncer) on Neon or Supabase. |
 | Instances | Any number | Rate limits live in the database, so every instance shares them. |
-| Timeouts | Built in: 30 s request, 20 s headers, 65 s keep-alive. JSON body limit 10 KB. | Stops slowloris clients and oversized payloads. |
+| Timeouts | Built in: 30 s request, 20 s headers, 65 s keep-alive. JSON body limit 10 KB (4 MB for saves). | Stops slowloris clients and oversized payloads. |
 | Health check | `GET /api/health` (checks the database) | Used by Docker `HEALTHCHECK` and platform probes. |
 | Shutdown | `SIGTERM` finishes in-flight requests, closes the pool and exits within 10 s | Deploys and restarts never cut a request in half. |
 | Restart policy | Always restart on failure | `docker run --restart unless-stopped`, or the platform default. |

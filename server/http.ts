@@ -1,7 +1,9 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import type { z } from 'zod'
 import type { Config } from './config.ts'
 import type { Db } from './db.ts'
 import { findSession, type Role, type SessionUser } from './sessions.ts'
+import { fieldErrors } from './validation.ts'
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -22,6 +24,13 @@ export class HttpError extends Error {
     this.fields = extra.fields
     this.retryAfter = extra.retryAfter
   }
+}
+
+/** Checks input against a schema, or answers 400 with a message per field. */
+export function parse<T extends z.ZodType>(schema: T, input: unknown): z.infer<T> {
+  const result = schema.safeParse(input ?? {})
+  if (!result.success) throw new HttpError(400, 'Check the highlighted fields.', { fields: fieldErrors(result.error) })
+  return result.data
 }
 
 /** `__Host-` makes the browser refuse the cookie unless it is Secure, host-only and Path=/. */
@@ -111,6 +120,13 @@ export function httpsOnly(config: Config): RequestHandler {
   }
 }
 
+/** Postgres puts the row itself into `detail` and `where`. Notes and grades must not end up in the logs. */
+function withoutRowData(err: unknown): unknown {
+  if (!(err instanceof Error) || !('severity' in err)) return err
+  const { code, table, constraint } = err as { code?: string; table?: string; constraint?: string }
+  return Object.assign(new Error(err.message), { name: err.name, stack: err.stack, code, table, constraint })
+}
+
 export function errorHandler(log: (msg: string, err?: unknown) => void) {
   return (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError) {
@@ -124,7 +140,7 @@ export function errorHandler(log: (msg: string, err?: unknown) => void) {
       res.status(status).json({ error: status === 413 ? 'Request is too large.' : 'Could not read the request.' })
       return
     }
-    log('Unhandled error', err)
+    log('Unhandled error', withoutRowData(err))
     res.status(500).json({ error: 'Something went wrong on our side. Please try again.' })
   }
 }

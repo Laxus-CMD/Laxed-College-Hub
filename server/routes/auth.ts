@@ -1,24 +1,17 @@
 import { Router, type Request, type Response } from 'express'
 import type { Config } from '../config.ts'
 import type { Db } from '../db.ts'
-import { clearSessionCookie, HttpError, requireAuth, setSessionCookie } from '../http.ts'
+import { clearSessionCookie, HttpError, parse, requireAuth, setSessionCookie } from '../http.ts'
 import { signInWithGoogle, type GoogleVerifier } from '../google.ts'
 import { cleanUp } from '../maintenance.ts'
 import { dummyHash, hashPassword, needsRehash, verifyPassword } from '../password.ts'
 import { RateLimiter } from '../rateLimit.ts'
 import { createSession, deleteSession, deleteUserSessions } from '../sessions.ts'
 import { audit, findUserByEmail, findUserById, insertUser, publicUser, ROLE_IDS } from '../users.ts'
-import { changePasswordBody, deleteAccountBody, fieldErrors, googleBody, loginBody, signupBody } from '../validation.ts'
-import type { z } from 'zod'
+import { changePasswordBody, deleteAccountBody, googleBody, loginBody, signupBody } from '../validation.ts'
 
 const MAX_FAILED_LOGINS = 10
 const LOCK_MINUTES = 15
-
-function parse<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
-  const result = schema.safeParse(body ?? {})
-  if (!result.success) throw new HttpError(400, 'Check the highlighted fields.', { fields: fieldErrors(result.error) })
-  return result.data
-}
 
 async function limit(limiter: RateLimiter, key: string) {
   const wait = await limiter.hit(key)
