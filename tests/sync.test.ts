@@ -637,7 +637,7 @@ describe('accounts and the browser', () => {
     expect(dump()).not.toMatch(/secret/i)
     e.discard()
     await accountsApi.logout()
-    useAuthStore.getState().accountDeleted()
+    useAuthStore.getState().endedOnServer()
     expect(dump()).not.toMatch(/secret/i)
     expect(JSON.stringify(readStores())).not.toMatch(/secret/i)
   })

@@ -130,6 +130,14 @@ export function authRoutes(db: Db, config: Config, limits: AuthLimits = DEFAULT_
     res.status(204).end()
   })
 
+  /** Signs out every device, this one included. For a lost phone or a shared computer left signed in. */
+  router.post('/logout-all', requireAuth, async (req, res) => {
+    await deleteUserSessions(db, req.user!.id)
+    await audit(db, { action: 'user.signed_out_everywhere', actorId: req.user!.id, targetId: req.user!.id, ip: req.ip })
+    clearSessionCookie(res, config)
+    res.status(204).end()
+  })
+
   router.get('/me', requireAuth, async (req, res) => {
     const user = await findUserById(db, req.user!.id)
     if (!user) throw new HttpError(401, 'Please sign in.')

@@ -387,3 +387,47 @@ describe('importing what is in this browser', () => {
     expect(inBrowser()).toContain('Guest task')
   })
 })
+describe('Sign out on all devices', () => {
+  const open = async (routes: Record<string, Handler>) => {
+    const calls = mockApi({ ...options, ...emptyAccount(STUDENT), ...routes })
+    useAuthStore.setState({ account: STUDENT })
+    const u = userEvent.setup()
+    render(<App />)
+    await u.click((await screen.findAllByRole('button', { name: 'Your data' }))[0]!)
+    return { u, calls }
+  }
+
+  it('ends every session and shows the sign-in page', async () => {
+    const { u, calls } = await open({ 'POST /api/auth/logout-all': () => [204, null] })
+    await u.click(screen.getByRole('button', { name: 'Sign out on all devices' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'College Hub' })).toBeInTheDocument()
+    expect(calls).toContain('POST /api/auth/logout-all')
+    expect(calls).not.toContain('POST /api/auth/logout')
+    expect(useAuthStore.getState().account).toBeNull()
+  })
+
+  it('saves first, and stays signed in when that fails', async () => {
+    const { u, calls } = await open({ 'POST /api/data/sync': () => [500, { error: 'no' }], 'POST /api/auth/logout-all': () => [204, null] })
+    useTaskStore.getState().addTask({ kind: 'todo', title: 'Unsaved' })
+    await u.click(screen.getByRole('button', { name: 'Sign out on all devices' }))
+    expect(await screen.findByText(/not saved yet, so you are still signed in/)).toBeInTheDocument()
+    expect(calls).not.toContain('POST /api/auth/logout-all')
+    expect(useAuthStore.getState().account).not.toBeNull()
+  })
+
+  it('says so when the server cannot be reached', async () => {
+    const { u } = await open({ 'POST /api/auth/logout-all': () => [500, { error: 'no' }] })
+    await u.click(screen.getByRole('button', { name: 'Sign out on all devices' }))
+    expect(await screen.findByText(/nothing was signed out/)).toBeInTheDocument()
+    expect(useAuthStore.getState().account).not.toBeNull()
+  })
+
+  it('is not there for guests', async () => {
+    mockApi(options)
+    useAuthStore.setState({ account: null, guest: true })
+    const u = userEvent.setup()
+    render(<App />)
+    await u.click(screen.getAllByRole('button', { name: 'Your data' })[0]!)
+    expect(screen.queryByRole('button', { name: 'Sign out on all devices' })).toBeNull()
+  })
+})

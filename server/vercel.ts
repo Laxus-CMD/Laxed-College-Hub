@@ -5,7 +5,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { consoleLogger, createApp, type Logger } from './app.ts'
 import { loadConfig, type Config } from './config.ts'
-import { connectDb } from './db.ts'
+import { connectDb, verifiedTls } from './db.ts'
 
 type Env = Record<string, string | undefined>
 type Handler = (req: IncomingMessage, res: ServerResponse) => void
@@ -32,7 +32,7 @@ export function createHandler(env: Env, log: Logger = consoleLogger) {
 
   const start = async (): Promise<Handler> => {
     const config = vercelConfig(env)
-    const db = await connectDb(config.DATABASE_URL!, {
+    const db = await connectDb(verifiedTls(config.DATABASE_URL!), {
       poolMax: config.DB_POOL_MAX,
       idleTimeoutMs: 5_000,
       onIdleError: (err) => log.error('Idle database connection dropped', err),

@@ -4,12 +4,13 @@ import { createServer, type Server } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from './app.ts'
 import { loadConfig } from './config.ts'
-import { connectDb, type Db } from './db.ts'
+import { connectDb, verifiedTls, type Db } from './db.ts'
 import { AUDIT_DAYS, cleanUp } from './maintenance.ts'
 import { migrate } from './migrate.ts'
 import { hashPassword, needsRehash, verifyPassword } from './password.ts'
 import { RateLimiter } from './rateLimit.ts'
 import { seedTestAccounts, TEST_ACCOUNTS } from './seed.ts'
+import { MAX_SESSIONS } from './sessions.ts'
 import { createHandler, vercelConfig } from './vercel.ts'
 
 const ORIGIN = 'http://localhost:5173'
@@ -361,5 +362,65 @@ describe('clean-up', () => {
     const { rows } = await db.query<{ action: string }>("SELECT action FROM audit_log WHERE action IN ('old', 'recent')")
     expect(rows).toEqual([{ action: 'recent' }])
     expect(AUDIT_DAYS).toBe(90)
+  })
+})
+
+describe('sessions on many devices', () => {
+  const account = async (n: number) => {
+    const email = `devices${n}@collegehub.test`
+    const password = 'a long enough phrase 77'
+    const first = client()
+    expect((await first.call('POST', '/auth/signup', { name: 'Devices', email, password })).status).toBe(201)
+    return { email, password, first }
+  }
+
+  it('signs out every device at once, and only that student', async () => {
+    const { email, password, first } = await account(1)
+    const { c: second } = await login(email, password)
+    const { c: other } = await login(STUDENT.email, STUDENT.password)
+
+    const res = await first.call('POST', '/auth/logout-all')
+    expect(res.status).toBe(204)
+    expect(res.setCookie).toMatch(/^sid=;/)
+    expect((await second.call('GET', '/auth/me')).status).toBe(401)
+    expect((await other.call('GET', '/auth/me')).status).toBe(200)
+    const { rows } = await db.query("SELECT 1 FROM audit_log WHERE action = 'user.signed_out_everywhere'")
+    expect(rows).toHaveLength(1)
+  })
+
+  it('needs a session to do that', async () => {
+    expect((await client().call('POST', '/auth/logout-all')).status).toBe(401)
+    const { c } = await login(STUDENT.email, STUDENT.password)
+    expect((await c.call('POST', '/auth/logout-all', undefined, { origin: 'https://evil.example' })).status).toBe(403)
+    expect((await c.call('GET', '/auth/me')).status).toBe(200)
+  })
+
+  it('ends the session unused the longest when there are too many', async () => {
+    const { email, password, first } = await account(2)
+    const { c: idle } = await login(email, password)
+    await db.query(
+      "UPDATE sessions SET last_seen_at = now() - interval '1 hour' WHERE user_agent IS NOT NULL AND id = (SELECT s.id FROM sessions s JOIN users u ON u.id = s.user_id WHERE u.email = $1 ORDER BY s.created_at DESC LIMIT 1)",
+      [email],
+    )
+    const rest = []
+    for (let i = 0; i < MAX_SESSIONS - 1; i++) rest.push((await login(email, password)).c)
+    expect((await idle.call('GET', '/auth/me')).status).toBe(401)
+    expect((await first.call('GET', '/auth/me')).status).toBe(200)
+    for (const c of rest) expect((await c.call('GET', '/auth/me')).status).toBe(200)
+    const { rows } = await db.query('SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id WHERE u.email = $1', [email])
+    expect(rows).toHaveLength(MAX_SESSIONS)
+  })
+})
+
+describe('database connection', () => {
+  it('is always encrypted and checked', () => {
+    const mode = (url: string) => new URL(verifiedTls(url)).searchParams.get('sslmode')
+    for (const query of ['', '?sslmode=require', '?sslmode=disable', '?sslmode=no-verify', '?ssl=0', '?uselibpqcompat=true&sslmode=require']) {
+      expect(mode(`postgresql://u:p@db.example/hub${query}`)).toBe('verify-full')
+    }
+    expect(verifiedTls('postgresql://u:p%40ss@db.example:5432/hub?sslmode=require&channel_binding=require')).toBe(
+      'postgresql://u:p%40ss@db.example:5432/hub?sslmode=verify-full&channel_binding=require',
+    )
+    expect(verifiedTls('postgres://u:p@db.example/d?ssl=0')).not.toContain('ssl=0')
   })
 })

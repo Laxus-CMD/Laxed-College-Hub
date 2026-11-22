@@ -77,6 +77,7 @@ export const accountsApi = {
     request<{ user: Account }>('POST', '/auth/signup', body).then((r) => r.user),
   login: (body: { email: string; password: string }) => request<{ user: Account }>('POST', '/auth/login', body).then((r) => r.user),
   logout: () => request<void>('POST', '/auth/logout'),
+  logoutAll: () => request<void>('POST', '/auth/logout-all'),
   me: () => request<{ user: Account }>('GET', '/auth/me').then((r) => r.user),
   changePassword: (body: { currentPassword: string; newPassword: string }) => request<void>('POST', '/auth/password', body),
   listUsers: (q = '') =>

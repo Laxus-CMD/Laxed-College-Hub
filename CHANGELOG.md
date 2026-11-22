@@ -2,6 +2,19 @@
 
 Patch notes for College Hub. Newest first.
 
+## 2026-11-22 · More protection
+
+### New
+
+- **Sign out on all devices**, in **Your data**. For a lost phone or a shared computer left signed in. An account can be signed in on 10 devices at once.
+
+### Security
+
+- The build stops if a secret, a source map or an unknown `VITE_` setting would reach the browser. A test checks every file in the repository.
+- A full Content Security Policy: pages only run the app's own scripts and Google sign-in, and only talk to College Hub and Google.
+- The database connection always checks the server's certificate.
+- [SECURITY.md](SECURITY.md) and monthly dependency updates.
+
 ## 2026-11-22 · Themes
 
 ### New

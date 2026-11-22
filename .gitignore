@@ -37,3 +37,9 @@ coverage
 # Accounts API: local PGlite database and backups
 server/.data
 backups
+*.dump
+*.gpg
+
+# Keys
+*.pem
+*.key

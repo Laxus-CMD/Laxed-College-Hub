@@ -8,8 +8,9 @@
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { build } from 'vite'
-import { connectDb } from '../server/db.ts'
+import { connectDb, verifiedTls } from '../server/db.ts'
 import { migrate } from '../server/migrate.ts'
+import { siteHeaders } from './siteHeaders.ts'
 
 const root = path.resolve(import.meta.dirname, '..')
 const out = path.join(root, '.vercel', 'output')
@@ -68,15 +69,7 @@ await writeFile(
       {
         // The API sets its own, stricter headers.
         src: '^/(?!api(?:/|$)).*$',
-        headers: {
-          // Nobody can put the site in a frame and trick people into clicking, for example, Delete account.
-          'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
-          'X-Content-Type-Options': 'nosniff',
-          'Referrer-Policy': 'strict-origin-when-cross-origin',
-          // Google's sign-in popup needs to talk back to the page.
-          'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-        },
+        headers: siteHeaders(path.join(root, 'dist')),
         continue: true,
       },
       { src: '^/assets/(.*)$', headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }, continue: true },
@@ -90,7 +83,7 @@ await writeFile(
 // Previews only migrate when told their database is separate from production.
 if (DATABASE_URL && (VERCEL_ENV === 'production' || (VERCEL_ENV === 'preview' && MIGRATE_PREVIEW_DB === 'true'))) {
   // A direct connection when there is one. Poolers are meant for short queries.
-  const db = await connectDb(DATABASE_URL_UNPOOLED ?? DATABASE_URL, { poolMax: 1 })
+  const db = await connectDb(verifiedTls(DATABASE_URL_UNPOOLED ?? DATABASE_URL), { poolMax: 1 })
   try {
     const applied = await migrate(db, console.log)
     console.log(applied.length ? `Applied ${applied.length} migration(s).` : 'Database is up to date.')

@@ -15,6 +15,7 @@ const ACTIONS: Record<string, string> = {
   'user.signup': 'Signed up',
   'login.success': 'Signed in',
   'login.failed': 'Failed sign-in',
+  'user.signed_out_everywhere': 'Signed out everywhere',
   'user.password_changed': 'Changed password',
   'admin.user_updated': 'Account updated by admin',
   'seed.test_account': 'Test account created',

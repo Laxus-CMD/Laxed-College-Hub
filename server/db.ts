@@ -24,6 +24,17 @@ export interface DbOptions {
   onIdleError?: (err: Error) => void
 }
 
+/**
+ * The same database address, but always encrypted and with the server's certificate checked,
+ * whatever sslmode it came with. So nobody in between can read the traffic or pose as the database.
+ */
+export function verifiedTls(url: string): string {
+  const u = new URL(url)
+  for (const name of ['ssl', 'uselibpqcompat']) u.searchParams.delete(name)
+  u.searchParams.set('sslmode', 'verify-full')
+  return u.href
+}
+
 export async function connectDb(
   url: string,
   { poolMax = 10, idleTimeoutMs = 30_000, onIdleError = () => {} }: DbOptions = {},
