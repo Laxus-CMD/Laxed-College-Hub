@@ -87,7 +87,8 @@ Wrong password, unknown email and disabled account all get the same message: "In
   - HSTS for 2 years in production
   - `Cache-Control: no-store`
   - no `X-Powered-By`
-- **Audit log:** sign-ups, logins, failed logins, password changes and admin edits go to `audit_log`. Admins see them on the Admin page.
+  - the static site cannot be framed (`frame-ancestors 'none'`), set in `scripts/build-vercel.ts`
+- **Audit log:** sign-ups, logins, failed logins, password changes and admin edits go to `audit_log`. Admins see them on the Admin page. Entries are deleted after 90 days.
 - **Request logs** record the method, path, status and time only. They never include bodies, cookies or query strings.
 
 ### HTTPS and SSL readiness
@@ -263,13 +264,13 @@ The GitHub Pages mirror has no API, so email sign-in there shows "offline". The 
 Use two layers:
 
 1. **Provider backups (primary).** Turn on daily snapshots plus point-in-time recovery (PITR) with at least 7 days of retention. Neon, Supabase Pro, Render Postgres, RDS and Cloud SQL all offer this. PITR lets you restore to the minute before a bad change.
-2. **Independent encrypted dumps (secondary).** These protect against losing the provider account or a region. `.github/workflows/db-backup.yml` runs `server/scripts/backup.sh` nightly at 02:17 Manila time. Each run:
+2. **Independent encrypted dumps (secondary).** These protect against losing the provider account, and go back further than Neon's free plan (6 hours). [db-backup.yml](db-backup.yml) is a GitHub Actions workflow for a **private** repository. This one is public, and anyone can download the artifacts of a public repository. Each night it:
    - runs `pg_dump --format=custom`
-   - encrypts the dump with AES-256 through `gpg`. Dumps contain password hashes and emails, and this repo is public, so they are never stored unencrypted.
-   - checks that the encrypted file decrypts and lists, so a broken backup fails the job
-   - uploads it as a workflow artifact kept for 30 days
+   - encrypts the dump with AES-256 through `gpg`
+   - checks that the encrypted file decrypts and holds every student data table, so a broken backup fails the job
+   - keeps it as an artifact for 30 days, which is also what the Privacy Policy says
 
-   To turn it on, add the repository variable `BACKUPS_ENABLED=true` and the secrets `DATABASE_URL` (the read-only backup role) and `BACKUP_PASSPHRASE`. Store the passphrase in a password manager too: without it, the backups cannot be read. For longer retention, copy the file to S3 or R2 with a lifecycle rule.
+   To run one by hand: `server/scripts/backup.sh`. Keep the passphrase in a password manager too: without it, the backups cannot be read.
 
 **Restore drill (do it once a term):**
 
@@ -286,5 +287,5 @@ Then point a staging API at that database and log in. A backup you have never re
 - [ ] `https://<site>/api/health` returns `{"ok":true}`
 - [ ] First admin created with `db:create-admin`, and no `.test` accounts exist
 - [ ] Provider PITR is on, the backup workflow is on, and one restore has been tested
-- [ ] **Update `public/privacy.html` and `public/terms.html`.** They currently say College Hub "has no server". With accounts, the server stores name, email, a password hash, role, sign-in times and IP addresses in the audit log and sessions. Say so, along with how long they are kept and how users can ask for deletion. This matters for Google OAuth verification and the Philippine Data Privacy Act.
+- [ ] `public/privacy.html` and `public/terms.html` still match what the server stores and for how long
 - [ ] Error alerts are on (the platform's log alerts on `[api] Unhandled error`)

@@ -1,0 +1,62 @@
+# Nightly encrypted database backup.
+#
+# Put this in a PRIVATE repository, as .github/workflows/db-backup.yml. Never in this public one:
+# anyone can download the artifacts of a public repository.
+#
+# In the private repository, under Settings > Secrets and variables > Actions, add:
+#   DATABASE_URL       the production database's direct (unpooled) connection string
+#   BACKUP_PASSPHRASE  a long random passphrase. Also keep it in a password manager: without it, no backup can be read.
+name: Database backup
+
+on:
+  schedule:
+    - cron: '17 18 * * *' # 02:17 in Manila
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install PostgreSQL 18 client tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-18
+
+      - name: Dump, encrypt and check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          PGBIN: /usr/lib/postgresql/18/bin
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${DATABASE_URL:?Add the DATABASE_URL secret}"
+          : "${BACKUP_PASSPHRASE:?Add the BACKUP_PASSPHRASE secret}"
+          umask 077
+          file="college-hub-$(date -u +%Y%m%dT%H%M%SZ).dump.gpg"
+          "$PGBIN/pg_dump" --format=custom --no-owner --no-privileges --dbname="$DATABASE_URL" \
+            | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 -o "$file" 3<<<"$BACKUP_PASSPHRASE"
+          # A backup that cannot be read, or has no student data tables, fails here instead of on the day it is needed.
+          gpg --batch --pinentry-mode loopback --passphrase-fd 3 -d "$file" 3<<<"$BACKUP_PASSPHRASE" 2>/dev/null > check.dump
+          "$PGBIN/pg_restore" --list check.dump > contents.txt
+          for table in users courses class_sessions tasks notes grade_components; do
+            grep -q "TABLE DATA public $table " contents.txt || { echo "No $table in the backup"; exit 1; }
+          done
+          rm check.dump contents.txt
+          echo "Backup is $(du -h "$file" | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: college-hub-backup
+          path: '*.dump.gpg'
+          if-no-files-found: error
+          retention-days: 30

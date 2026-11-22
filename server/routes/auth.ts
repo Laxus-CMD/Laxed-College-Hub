@@ -48,8 +48,8 @@ export function authRoutes(db: Db, config: Config, limits: AuthLimits = DEFAULT_
       userAgent: req.headers['user-agent'],
     })
     setSessionCookie(res, config, token, expiresAt)
-    // Serverless has no background timer, so about 1 sign-in in 50 also clears out expired rows.
-    if (Math.random() < 0.02) await cleanUp(db, config.SESSION_IDLE_HOURS).catch(() => {})
+    // Serverless has no background timer, so about 1 sign-in in 20 also clears out expired rows.
+    if (Math.random() < 0.05) await cleanUp(db, config.SESSION_IDLE_HOURS).catch(() => {})
   }
 
   /** Which ways to sign in this server offers. */

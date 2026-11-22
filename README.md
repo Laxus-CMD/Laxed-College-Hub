@@ -21,7 +21,7 @@ Students juggle a timetable app, a to-do app, a notes app and a grade spreadshee
 - [x] **What-if grade calculator** with weighted components, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
 - [x] **Notes** in markdown linked to class sessions. Take notes for the class in session straight from the hero banner.
 
-Also in V1: sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), sample data you can clear or restore, and everything saved in the browser.
+Also in V1: sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), light and dark mode (or follow the system), and sample data you can clear or restore. Signed-in students' data is saved to their account and follows them to every device. Guests save to their browser.
 
 ## Tech stack
 
@@ -30,8 +30,8 @@ Also in V1: sign in with Google (or continue without an account), search across 
 | Framework | React 19 + TypeScript + Vite | Fast dev loop and strict types |
 | Styling | Tailwind CSS v4 + Lucide icons | Clean modern UI without custom CSS sprawl |
 | State | Zustand | Small API and easy persistence |
-| Storage | Browser localStorage / IndexedDB | No backend needed and works offline |
-| Accounts | Express 5 + PostgreSQL (PGlite locally), scrypt, cookie sessions | Optional email login and admin roles. See [docs/backend.md](docs/backend.md) |
+| Storage | PostgreSQL for accounts, browser localStorage for guests | Data follows the student, and an account stays optional |
+| Accounts | Express 5 + PostgreSQL (PGlite locally), Google sign-in checked on the server, cookie sessions | See [docs/backend.md](docs/backend.md) |
 | Canvas | iCal (.ics) parser | Works without university IT or OAuth |
 | Tests | Vitest + Testing Library | Same config as Vite |
 | Lint | Oxlint | Very fast |

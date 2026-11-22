@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from './app.ts'
 import { loadConfig } from './config.ts'
 import { connectDb, type Db } from './db.ts'
-import { cleanUp } from './maintenance.ts'
+import { AUDIT_DAYS, cleanUp } from './maintenance.ts'
 import { migrate } from './migrate.ts'
 import { hashPassword, needsRehash, verifyPassword } from './password.ts'
 import { RateLimiter } from './rateLimit.ts'
@@ -350,5 +350,16 @@ describe('Vercel function', () => {
     }
     expect(errors).toHaveLength(2)
     await new Promise((r) => http.close(r))
+  })
+})
+
+describe('clean-up', () => {
+  it('forgets security log entries after the time the Privacy Policy promises', async () => {
+    await db.query("INSERT INTO audit_log (action, ip, created_at) VALUES ('old', '203.0.113.1', now() - make_interval(days => $1))", [AUDIT_DAYS + 1])
+    await db.query("INSERT INTO audit_log (action, ip, created_at) VALUES ('recent', '203.0.113.1', now() - make_interval(days => $1))", [AUDIT_DAYS - 1])
+    await cleanUp(db, 24)
+    const { rows } = await db.query<{ action: string }>("SELECT action FROM audit_log WHERE action IN ('old', 'recent')")
+    expect(rows).toEqual([{ action: 'recent' }])
+    expect(AUDIT_DAYS).toBe(90)
   })
 })

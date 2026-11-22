@@ -65,6 +65,20 @@ await writeFile(
   JSON.stringify({
     version: 3,
     routes: [
+      {
+        // The API sets its own, stricter headers.
+        src: '^/(?!api(?:/|$)).*$',
+        headers: {
+          // Nobody can put the site in a frame and trick people into clicking, for example, Delete account.
+          'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+          'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          // Google's sign-in popup needs to talk back to the page.
+          'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+        },
+        continue: true,
+      },
       { src: '^/assets/(.*)$', headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }, continue: true },
       { src: '^/api(?:/.*)?$', dest: '/api' },
       { handle: 'filesystem' },

@@ -26,5 +26,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: false,
+    // Starting the embedded Postgres can be slow on a busy machine.
+    hookTimeout: 60_000,
   },
 })
