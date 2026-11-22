@@ -6,7 +6,7 @@ import { ThemeSegmented } from '@/app/ThemeToggle'
 import { Avatar } from '@/features/auth/Avatar'
 import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { clearAllData, loadDemoData } from '@/store/actions'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAuthStore, useProfile } from '@/store/useAuthStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
 
@@ -15,7 +15,9 @@ export function SettingsDialog() {
   const close = useUiStore((s) => s.closeDialog)
   const name = useSettingsStore((s) => s.name)
   const setName = useSettingsStore((s) => s.setName)
-  const user = useAuthStore((s) => s.user)
+  const user = useProfile()
+  const account = useAuthStore((s) => s.account)
+  const openDialog = useUiStore((s) => s.openDialog)
   const signOut = useAuthStore((s) => s.signOut)
   const [draft, setDraft] = useState(name)
   const [armed, setArmed] = useState<'clear' | 'restore' | null>(null)
@@ -43,8 +45,16 @@ export function SettingsDialog() {
           <Avatar user={user} className="size-9" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{user ? user.name : 'Guest'}</p>
-            <p className="truncate text-[13px] text-muted">{user ? user.email : 'Not signed in'}</p>
+            <p className="truncate text-[13px] text-muted">
+              {user ? user.email : 'Not signed in'}
+              {account?.role === 'admin' ? ' · Admin' : ''}
+            </p>
           </div>
+          {account ? (
+            <Button size="sm" variant="subtle" onClick={() => openDialog({ type: 'password' })}>
+              Password
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant={user ? 'ghost' : 'primary'}
@@ -60,7 +70,8 @@ export function SettingsDialog() {
           <Input data-autofocus maxLength={30} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Shown in the greeting" />
         </Label>
         <p className="text-[13px] text-muted">
-          Courses, classes, tasks, notes and grades are saved in this browser on this device. Nothing is sent anywhere.{' '}
+          Courses, classes, tasks, notes and grades are saved in this browser on this device and are not sent anywhere.
+          {account ? ' Your account name, email and role are stored on the College Hub server.' : ''}{' '}
           <a href={PRIVACY_URL} className="text-accent underline-offset-2 hover:underline">
             Privacy Policy
           </a>

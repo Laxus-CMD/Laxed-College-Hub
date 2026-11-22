@@ -6,11 +6,13 @@ import { Sidebar } from '@/app/Sidebar'
 import { ToastHost } from '@/app/ToastHost'
 import { useRoute, type Route } from '@/lib/route'
 import AssignmentsPage from '@/features/assignments/AssignmentsPage'
+import AdminPage from '@/features/admin/AdminPage'
+import { accountsApi, ApiError } from '@/features/auth/api'
 import LoginPage from '@/features/auth/LoginPage'
 import GradesPage from '@/features/grades/GradesPage'
 import NotesPage from '@/features/notes/NotesPage'
 import SchedulePage from '@/features/schedule/SchedulePage'
-import { useIsSignedIn } from '@/store/useAuthStore'
+import { useAuthStore, useIsAdmin, useIsSignedIn } from '@/store/useAuthStore'
 import { useApplyTheme } from '@/store/useThemeStore'
 
 const PAGES: Record<Route, () => React.JSX.Element> = {
@@ -19,13 +21,35 @@ const PAGES: Record<Route, () => React.JSX.Element> = {
   assignments: AssignmentsPage,
   grades: GradesPage,
   notes: NotesPage,
+  admin: AdminPage,
 }
 
 export default function App() {
   const route = useRoute()
-  const Page = PAGES[route]
   useApplyTheme()
   const signedIn = useIsSignedIn()
+  const isAdmin = useIsAdmin()
+  const hasAccount = useAuthStore((s) => s.account !== null)
+  // Admin is hidden for everyone else. The API refuses them anyway.
+  const Page = route === 'admin' && !isAdmin ? OverviewPage : PAGES[route]
+
+  // The saved account is only a hint. Ask the server whether the session is still good,
+  // and pick up role changes. A 401 signs out; a network error keeps the user in (offline use).
+  useEffect(() => {
+    if (!hasAccount) return
+    let cancelled = false
+    accountsApi.me().then(
+      (account) => {
+        if (!cancelled) useAuthStore.getState().signInAccount(account)
+      },
+      (err: unknown) => {
+        if (!cancelled && err instanceof ApiError && err.status === 401) useAuthStore.getState().signOut()
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [hasAccount])
 
   // Press "/" anywhere outside a text field to jump to search.
   useEffect(() => {

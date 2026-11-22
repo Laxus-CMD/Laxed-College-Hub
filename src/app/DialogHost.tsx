@@ -4,6 +4,7 @@ import { ClassDrawer } from '@/features/schedule/ClassDrawer'
 import { CourseDialog } from '@/features/schedule/CourseDialog'
 import { SessionDialog } from '@/features/schedule/SessionDialog'
 import { SettingsDialog } from '@/app/SettingsDialog'
+import { PasswordDialog } from '@/features/auth/PasswordDialog'
 import { useUiStore } from '@/store/useUiStore'
 
 /** Renders whichever dialog or drawer is open. State lives in the UI store so any page can open them. */
@@ -21,6 +22,7 @@ export function DialogHost() {
       ) : null}
       {dialog?.type === 'settings' ? <SettingsDialog /> : null}
       {dialog?.type === 'ics' ? <IcsDialog /> : null}
+      {dialog?.type === 'password' ? <PasswordDialog /> : null}
     </>
   )
 }

@@ -1,4 +1,4 @@
-import { CalendarDays, ChartColumn, GraduationCap, House, NotebookPen, Pencil, PencilLine, Plus, Settings } from 'lucide-react'
+import { CalendarDays, ChartColumn, GraduationCap, House, NotebookPen, Pencil, PencilLine, Plus, Settings, ShieldCheck } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Dot } from '@/components/ui/Chip'
@@ -7,7 +7,7 @@ import { navigate, type Route } from '@/lib/route'
 import { SearchBox } from '@/app/SearchBox'
 import { ThemeSegmented, ThemeToggleButton } from '@/app/ThemeToggle'
 import { Avatar } from '@/features/auth/Avatar'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useIsAdmin, useProfile } from '@/store/useAuthStore'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useUiStore } from '@/store/useUiStore'
 
@@ -18,6 +18,9 @@ const MENU: { route: Route; label: string; short: string; icon: ComponentType<{ 
   { route: 'grades', label: 'Grade & GPA Calculator', short: 'Grades', icon: ChartColumn },
   { route: 'notes', label: 'Notes', short: 'Notes', icon: NotebookPen },
 ]
+
+/** Only shown to admins. The API enforces the role; this just hides a page others cannot use. */
+const ADMIN_ITEM: (typeof MENU)[number] = { route: 'admin', label: 'Admin', short: 'Admin', icon: ShieldCheck }
 
 function SectionTitle({ children }: { children: string }) {
   return <h2 className="px-2 text-[11px] font-semibold tracking-[0.04em] text-faint uppercase">{children}</h2>
@@ -33,7 +36,8 @@ export function Sidebar({ route }: { route: Route }) {
   const openDialog = useUiStore((s) => s.openDialog)
   const taskCourse = useUiStore((s) => s.taskCourse)
   const setTaskCourse = useUiStore((s) => s.setTaskCourse)
-  const user = useAuthStore((s) => s.user)
+  const user = useProfile()
+  const menu = useIsAdmin() ? [...MENU, ADMIN_ITEM] : MENU
 
   return (
     <aside
@@ -60,7 +64,7 @@ export function Sidebar({ route }: { route: Route }) {
       >
         <h2 className="sr-only">Menu</h2>
         <div className="flex lg:flex-col lg:gap-px">
-          {MENU.map(({ route: r, label, short, icon: Icon }) => {
+          {menu.map(({ route: r, label, short, icon: Icon }) => {
             const active = route === r
             return (
               <a

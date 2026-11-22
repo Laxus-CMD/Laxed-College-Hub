@@ -1,6 +1,7 @@
 import { CalendarDays, ChartColumn, GraduationCap, NotebookPen, PencilLine } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ThemeToggleButton } from '@/app/ThemeToggle'
+import { AccountForm } from '@/features/auth/AccountForm'
 import { GOOGLE_CLIENT_ID, loadGoogleIdentity, parseGoogleCredential } from '@/features/auth/google'
 import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -118,6 +119,12 @@ export default function LoginPage() {
           </ul>
 
           <div className="mt-8 flex flex-col gap-3">
+            <AccountForm />
+            <div className="flex items-center gap-3 text-xs text-faint">
+              <span className="h-px flex-1 bg-line" />
+              or
+              <span className="h-px flex-1 bg-line" />
+            </div>
             <GoogleButton onError={setError} />
             {error ? (
               <p role="alert" className="text-center text-[13px] text-bad">
@@ -139,8 +146,8 @@ export default function LoginPage() {
           </div>
         </section>
         <p className="mt-5 px-4 text-center text-xs text-faint">
-          Your courses, tasks, notes and grades stay saved in this browser. Google only tells College Hub your name, email
-          and photo.
+          Your courses, tasks, notes and grades stay saved in this browser. An email account stores your name, email and a
+          hashed password on the College Hub server. Google only tells College Hub your name, email and photo.
         </p>
         <p className="mt-2 px-4 text-center text-xs text-faint">
           By continuing, you agree to the{' '}

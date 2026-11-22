@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { UserRound } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import type { GoogleUser } from '@/features/auth/google'
+import type { Profile } from '@/store/useAuthStore'
 
-/** Google profile photo, falling back to an initial (or a person icon for guests). */
-export function Avatar({ user, className }: { user: GoogleUser | null; className?: string }) {
+/** Profile photo (Google accounts), falling back to an initial (or a person icon for guests). */
+export function Avatar({ user, className }: { user: Profile | null; className?: string }) {
   const [broken, setBroken] = useState(false)
   const base = cn('grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-fill-strong text-[12px] font-semibold text-muted', className)
   if (user?.picture && !broken) {

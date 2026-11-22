@@ -18,7 +18,7 @@ export function resetStores(now: Date): void {
   useNoteStore.setState({ notes: demo.notes })
   useGradeStore.setState({ components: demo.components, overrides: {}, targets: {}, prior: { cgpa: null, units: null } })
   useSettingsStore.setState({ name: '', isDemo: true, bannerDismissed: false })
-  useAuthStore.setState({ user: TEST_USER, guest: false })
+  useAuthStore.setState({ user: TEST_USER, account: null, guest: false })
   useThemeStore.setState({ theme: 'system' })
   delete document.documentElement.dataset.theme
   useUiStore.setState({
