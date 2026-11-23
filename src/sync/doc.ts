@@ -131,6 +131,9 @@ const CLEAN: { [K in Kind]: (r: Doc[K][number]) => Doc[K][number] } = {
     name: text(c.name, 300),
     weight: num(c.weight),
     score: numOrNull(c.score),
+    // Always sent, as a number or null. The server reads a missing total as "keep what is saved",
+    // which is what apps before 1.7.0 need, so clearing one has to say null.
+    totalScore: typeof c.totalScore === 'number' && Number.isFinite(c.totalScore) && c.totalScore > 0 ? num(c.totalScore) : null,
   }),
 }
 

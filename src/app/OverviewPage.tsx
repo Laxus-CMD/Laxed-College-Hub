@@ -1,4 +1,5 @@
-import { Plus, X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Plus, SlidersHorizontal, X } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useNow } from '@/lib/useNow'
@@ -8,7 +9,12 @@ import { GpaCard } from '@/features/grades/GpaCard'
 import { HeroBanner } from '@/features/hero/HeroBanner'
 import { getHeroState } from '@/features/hero/heroState'
 import { RecentNotesCard } from '@/features/notes/RecentNotesCard'
+import { PomodoroCard } from '@/features/pomodoro/PomodoroCard'
 import { TodayCard } from '@/features/schedule/TodayCard'
+import { CustomizableDashboard } from '@/features/dashboard/CustomizableDashboard'
+import { DashboardEditBar } from '@/features/dashboard/DashboardEditBar'
+import { readingOrder, setHidden, type WidgetId } from '@/features/dashboard/layout'
+import { useDashboardLayout } from '@/features/dashboard/useDashboardLayout'
 import { clearAllData } from '@/store/actions'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
@@ -31,6 +37,26 @@ export default function OverviewPage() {
   const openDialog = useUiStore((s) => s.openDialog)
 
   const hero = getHeroState(now, sessions, tasks)
+  const showToast = useUiStore((s) => s.showToast)
+  const { layout, save, reset } = useDashboardLayout()
+  const [editing, setEditing] = useState(false)
+  const customize = useRef<HTMLButtonElement>(null)
+
+  /** The widgets, by id. Where each goes is decided by the saved layout, not here. */
+  const widgets: Record<WidgetId, React.ReactNode> = {
+    'next-class': <HeroBanner state={hero} now={now} />,
+    tasks: <UpcomingTasksCard now={now} />,
+    today: <TodayCard now={now} />,
+    pomodoro: <PomodoroCard />,
+    'next-7-days': <WeekLoadCard now={now} />,
+    'term-gpa': <GpaCard />,
+    'recent-notes': <RecentNotesCard />,
+  }
+  const finish = () => {
+    setEditing(false)
+    // Back to the button that started it.
+    requestAnimationFrame(() => customize.current?.focus())
+  }
 
   return (
     <>
@@ -38,10 +64,18 @@ export default function OverviewPage() {
         title={`${greeting(now)}${name ? `, ${name}` : ''}`}
         subtitle={now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         actions={
-          <Button variant="primary" onClick={() => openDialog({ type: 'task' })}>
-            <Plus className="size-4" aria-hidden="true" />
-            New task
-          </Button>
+          <>
+            {editing ? null : (
+              <Button ref={customize} variant="subtle" onClick={() => setEditing(true)}>
+                <SlidersHorizontal className="size-4" aria-hidden="true" />
+                Customize
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => openDialog({ type: 'task' })}>
+              <Plus className="size-4" aria-hidden="true" />
+              New task
+            </Button>
+          </>
         }
       />
       {isDemo && !dismissed ? (
@@ -55,18 +89,29 @@ export default function OverviewPage() {
           </IconButton>
         </div>
       ) : null}
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-6">
-        <div className="flex min-w-0 flex-col gap-5 xl:gap-6">
-          <HeroBanner state={hero} now={now} />
-          <UpcomingTasksCard now={now} />
-          <WeekLoadCard now={now} />
+      {editing ? (
+        <DashboardEditBar
+          layout={layout}
+          onToggle={(id, hide) => save(setHidden(layout, id, hide))}
+          onReset={() => {
+            reset()
+            showToast({ message: 'Dashboard reset to the default layout. Your data is unchanged.' })
+          }}
+          onDone={finish}
+        />
+      ) : null}
+      {/* The default order follows importance: what is happening now and what is due, then the tools used alongside, then the rest. */}
+      <CustomizableDashboard layout={layout} editing={editing} widgets={widgets} onChange={save} />
+      {!editing && readingOrder(layout).length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center">
+          <p className="text-[15px] font-medium">All widgets are hidden</p>
+          <p className="mt-1 text-[13px] text-muted">Nothing was deleted. Choose which ones to show again.</p>
+          <Button className="mt-4" onClick={() => setEditing(true)}>
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
+            Customize
+          </Button>
         </div>
-        <div className="grid min-w-0 items-start gap-5 max-xl:grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] xl:flex xl:flex-col xl:items-stretch xl:gap-6">
-          <TodayCard now={now} />
-          <GpaCard />
-          <RecentNotesCard />
-        </div>
-      </div>
+      ) : null}
     </>
   )
 }

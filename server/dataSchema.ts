@@ -92,6 +92,11 @@ const component = z.object({
   name: text(300),
   weight: number,
   score: maybe(number),
+  /**
+   * Missing, null and a number mean three different things. Missing keeps what is saved, because
+   * apps before 1.7.0 do not know about totals and must not erase one. Null goes back to the default of 100.
+   */
+  totalScore: number.positive().nullable().optional(),
 })
 
 /** Keeps the last of any records with the same id. */

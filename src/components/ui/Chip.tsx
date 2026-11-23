@@ -6,10 +6,10 @@ import { cn } from '@/lib/cn'
 export function CourseChip({ course, children }: { course: Pick<Course, 'code' | 'color'>; children?: ReactNode }) {
   return (
     <span
-      className="inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-xs font-medium"
-      style={{ backgroundColor: `color-mix(in srgb, ${course.color} 14%, transparent)` }}
+      className="inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[11.5px] leading-none font-medium text-ink/80"
+      style={{ backgroundColor: `color-mix(in srgb, ${course.color} 13%, transparent)` }}
     >
-      <i className="size-[7px] rounded-full" style={{ background: course.color }} />
+      <i className="size-1.5 shrink-0 rounded-full" style={{ background: course.color }} />
       {course.code}
       {children}
     </span>

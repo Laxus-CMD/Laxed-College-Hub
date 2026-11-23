@@ -74,6 +74,7 @@ const TABLES: Record<Kind, { table: string; columns: readonly Column[] }> = {
       ['name', 'name', 'text'],
       ['weight', 'weight', 'double precision'],
       ['score', 'score', 'double precision'],
+      ['totalScore', 'total_score', 'double precision'],
     ],
   },
 }
@@ -241,7 +242,10 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
     }
 
     await upsertAll(t, userId, 'sessions', withCourse(upsert.sessions))
-    await upsertAll(t, userId, 'components', withCourse(upsert.components))
+    const components = await keepTotals(t, userId, withCourse(upsert.components))
+    // A kept total is something other than what was sent, so the sender gets the saved version back.
+    if (components.kept) adjusted = true
+    await upsertAll(t, userId, 'components', components.list)
 
     const tasks = await withoutDuplicateImports(t, userId, upsert.tasks)
     if (tasks.length !== upsert.tasks.length) adjusted = true
@@ -387,5 +391,28 @@ async function enforceQuotas(t: Queryable, userId: string): Promise<void> {
   }
   if (rows.reduce((sum, r) => sum + r.bytes, 0) > QUOTAS.bytes) {
     throw new HttpError(422, 'Your account is full. Delete some notes or tasks to save more.')
+  }
+}
+
+/**
+ * A component sent without totalScore keeps the total it already has. Apps before 1.7.0 never
+ * send one, and a rename from such an app must not turn 42/50 into 42/100. Clearing a total
+ * is an explicit null.
+ */
+async function keepTotals<T extends { id: string; totalScore?: number | null }>(
+  t: Queryable,
+  userId: string,
+  list: T[],
+): Promise<{ list: T[]; kept: boolean }> {
+  const missing = list.filter((c) => c.totalScore === undefined).map((c) => c.id)
+  if (missing.length === 0) return { list, kept: false }
+  const { rows } = await t.query<{ id: string; total_score: number | null }>(
+    'SELECT id, total_score FROM grade_components WHERE user_id = $1 AND id = ANY($2::text[])',
+    [userId, missing],
+  )
+  const saved = new Map(rows.map((r) => [r.id, r.total_score]))
+  return {
+    list: list.map((c) => (c.totalScore === undefined ? { ...c, totalScore: saved.get(c.id) ?? null } : c)),
+    kept: rows.some((r) => r.total_score !== null),
   }
 }

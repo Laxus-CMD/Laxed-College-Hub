@@ -137,7 +137,8 @@ tasks              (user_id, id) PK, course (set null), kind, title, due, done, 
                    external_id (unique per student)
 notes              (user_id, id) PK, course and class (set null), title, body, session_date,
                    created_at, updated_at, text_revision, text_client
-grade_components   (user_id, id) PK, course (cascade), name, weight, score
+grade_components   (user_id, id) PK, course (cascade), name, weight, score,
+                   total_score (005; empty means 100, must be more than 0; a save that leaves it out keeps it)
 ```
 
 A role can only be one of the two rows in `roles`, so adding a role (for example `instructor`) is just a new migration plus a new `requireRole(...)`.

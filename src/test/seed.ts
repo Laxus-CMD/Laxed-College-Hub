@@ -8,6 +8,7 @@ import { useTaskStore } from '@/store/useTaskStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useStorageHealth } from '@/lib/storage'
+import { useFocusTask } from '@/features/pomodoro/focusTask'
 import { sync } from '@/sync/engine'
 import { dropPending, listPending, resetPendingMemory } from '@/sync/pending'
 
@@ -19,6 +20,7 @@ export function resetStores(now: Date): void {
   for (const p of listPending()) dropPending(p.accountId, p.clientId)
   resetPendingMemory()
   useStorageHealth.setState({ ok: true })
+  useFocusTask.setState({ task: '' })
   const demo = makeDemoData(now)
   useScheduleStore.setState({ courses: demo.courses, sessions: demo.sessions })
   useTaskStore.setState({ tasks: demo.tasks })

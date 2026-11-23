@@ -32,6 +32,24 @@ export interface ComponentLike {
   id: string
   weight: number
   score: number | null
+  totalScore?: number | null
+}
+
+/** Scores without a total are out of 100, so percentages entered before totals existed keep their meaning. */
+export const DEFAULT_TOTAL = 100
+
+/** Why a total cannot be used, or null when it can. Blank means the default of 100. */
+export function totalProblem(total: number | null | undefined): string | null {
+  if (total === null || total === undefined) return null
+  if (!Number.isFinite(total)) return 'Enter a number.'
+  return total > 0 ? null : 'Total possible must be more than 0.'
+}
+
+/** A component's score as a percent of its total. Null when it is not graded yet, or its total is unusable. */
+export function scorePercent(c: ComponentLike): number | null {
+  const total = c.totalScore ?? DEFAULT_TOTAL
+  if (c.score === null || !Number.isFinite(c.score) || totalProblem(total)) return null
+  return (c.score / total) * 100
 }
 
 export interface ComponentSummary {
@@ -53,9 +71,10 @@ export function summarize(components: ComponentLike[]): ComponentSummary {
   for (const c of components) {
     const w = Number.isFinite(c.weight) ? c.weight : 0
     total += w
-    if (c.score !== null && Number.isFinite(c.score)) {
+    const percent = scorePercent(c)
+    if (percent !== null) {
       graded += w
-      earned += (w * c.score) / 100
+      earned += (w * percent) / 100
     }
   }
   return {
@@ -107,7 +126,7 @@ export function projectFinal(
   const fill = fallback ?? s.average ?? 0
   let points = 0
   for (const c of components) {
-    const score = c.score ?? hypotheticals[c.id] ?? fill
+    const score = scorePercent(c) ?? hypotheticals[c.id] ?? fill
     points += (c.weight * score) / 100
   }
   return (points / s.totalWeight) * 100

@@ -191,7 +191,7 @@ export default function AssignmentsPage() {
               <span className="text-[11px] font-normal text-faint">{groups[u].length}</span>
             </h2>
             <Card className="px-[18px] py-1.5">
-              <ul>
+              <ul className="@container">
                 {groups[u].map((t) => (
                   <TaskRow key={t.id} task={t} now={now} course={courseMap.get(t.courseId ?? '')} full />
                 ))}

@@ -18,10 +18,10 @@ Students juggle a timetable app, a to-do app, a notes app and a grade spreadshee
 - [x] **Weekly schedule** with color-coded courses and recurring classes. Click an empty slot to add a class, pick several days at once, and get a warning when two classes overlap. A class detail drawer shows the room, professor, office hours, notes and open work.
 - [x] **Assignments and to-dos** with an urgency engine (overdue, due today, this week, later), course filters, quick add and undo on delete.
 - [x] **Canvas sync** by importing an iCal (.ics) file or pasted feed text. Course tags like `[FNDSTAT-A]` match your courses and re-importing skips what you already have.
-- [x] **What-if grade calculator** with weighted components, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
+- [x] **What-if grade calculator** with weighted components entered as points (like 42 out of 50) or percentages, the average you need on the rest, a what-if slider for each ungraded item, term GPA, cumulative GPA, a target planner and an editable grading scale.
 - [x] **Notes** in markdown linked to class sessions. Take notes for the class in session straight from the hero banner.
 
-Also in V1: sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), five color themes in light and dark (or follow the system), and sample data you can clear or restore. Signed-in students' data is saved to their account and follows them to every device. Guests save to their browser.
+Also: a Pomodoro timer on Overview (25/5, 50/10 or custom lengths), sign in with Google (or continue without an account), search across courses, tasks, classes and notes (press `/`), five color themes in light and dark (or follow the system), and sample data you can clear or restore. Signed-in students' data is saved to their account and follows them to every device. Guests save to their browser.
 
 ## Tech stack
 
