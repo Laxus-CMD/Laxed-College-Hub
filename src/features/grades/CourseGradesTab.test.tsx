@@ -116,8 +116,48 @@ describe('points-based grade entry', () => {
   it('goes back to the default total when total possible is cleared', () => {
     view()
     type('Total possible for Quiz 1', '')
-    expect(stored('quiz')!.totalScore).toBeUndefined()
+    // Saved as an explicit null, so the account clears it on purpose (a missing total means "keep").
+    expect(stored('quiz')!.totalScore).toBeNull()
     expect(row('Quiz 1')).toHaveTextContent('42% · adds 12.6 of 30 points')
+  })
+
+  it('leaves a row with a bad total out of projections and targets, not just the average', () => {
+    // Two rows of equal weight: one graded at 90%, one with a total of 0.
+    useGradeStore.setState({
+      components: [
+        { id: 'a', courseId: 'c1', name: 'Exam A', weight: 50, score: 90, totalScore: 100 },
+        { id: 'b', courseId: 'c1', name: 'Exam B', weight: 50, score: 30, totalScore: 50 },
+      ],
+      targets: { c1: 3 },
+    })
+    view()
+    type('Total possible for Exam B', '0')
+    const card = current()
+    expect(within(card).getByText('90.0%')).toBeInTheDocument()
+    expect(card).toHaveTextContent('Leaves out Exam B until the box marked in red is fixed.')
+    // It is not "remaining work": no target is worked out over it.
+    expect(within(card).getByRole('status')).toHaveTextContent('Fix the box marked in red for Exam B to see what you need on the rest.')
+    expect(within(card).getByRole('status')).not.toHaveTextContent(/70|need an average|All components are graded/)
+    // And it gets no what-if.
+    expect(screen.queryByRole('region', { name: 'What-if' })).not.toBeInTheDocument()
+    // Total weight still shows what was entered.
+    expect(screen.getByText(/Total weight/)).toHaveTextContent('Total weight 100%')
+  })
+
+  it('keeps genuinely ungraded rows in the what-if while a bad row is left out', () => {
+    view()
+    type('Total possible for Quiz 1', '0')
+    const whatIf = screen.getByRole('region', { name: 'What-if' })
+    expect(within(whatIf).getByRole('slider', { name: /Project/ })).toBeInTheDocument()
+    expect(within(whatIf).queryByRole('slider', { name: /Quiz 1/ })).not.toBeInTheDocument()
+    fireEvent.change(within(whatIf).getByRole('slider', { name: /Project/ }), { target: { value: '100' } })
+    // Midterm 36 + Project 30, over the 70% of weight that can be counted.
+    expect(within(whatIf).getByText('94.3%')).toBeInTheDocument()
+    expect(whatIf).toHaveTextContent('Without Quiz 1, final grade would be')
+    // Fixing it brings everything back.
+    type('Total possible for Quiz 1', '50')
+    expect(current()).not.toHaveTextContent('Leaves out')
+    expect(within(screen.getByRole('region', { name: 'What-if' })).getByText('91.2%')).toBeInTheDocument()
   })
 
   it('lets a box be empty while editing, and tidies it afterwards', () => {

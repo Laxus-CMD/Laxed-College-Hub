@@ -505,11 +505,30 @@ describe('points-based grades', () => {
     expect(data.components[1]).not.toHaveProperty('totalScore')
   })
 
-  it('goes back to the default of 100 when the total is cleared', async () => {
+  it('keeps a saved total when an older app saves the component without knowing about totals', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')], components: [component('quiz', 'c1', { score: 42, totalScore: 50 })] } })
+    // Version 1.6.0 renames the component. It has never heard of totalScore, so it leaves it out.
+    const res = await s.send({ upsert: { components: [component('quiz', 'c1', { name: 'Quiz 1 (renamed)', score: 42 })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    // The answer carries the kept total, so the app's own copy does not drift to 42/100.
+    expect(res.json.data.components[0]).toMatchObject({ id: 'quiz', totalScore: 50 })
+    expect((await s.load()).components).toEqual([component('quiz', 'c1', { name: 'Quiz 1 (renamed)', score: 42, totalScore: 50 })])
+  })
+
+  it('goes back to the default of 100 only when asked to, on the same saved row', async () => {
     const s = await student()
     await s.save({ upsert: { courses: [course('c1')], components: [component('quiz', 'c1', { score: 42, totalScore: 50 })] } })
     await s.save({ upsert: { components: [component('quiz', 'c1', { score: 42 })] } })
+    expect((await s.load()).components).toEqual([component('quiz', 'c1', { score: 42, totalScore: 50 })])
+    await s.save({ upsert: { components: [component('quiz', 'c1', { score: 42, totalScore: null })] } })
     expect((await s.load()).components).toEqual([component('quiz', 'c1', { score: 42 })])
+  })
+
+  it('starts a new component without a total at the default of 100', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')], components: [component('fresh', 'c1', { score: 7 })] } })
+    expect((await s.load()).components).toEqual([component('fresh', 'c1', { score: 7 })])
   })
 
   it('refuses a total of zero or less, and saves nothing', async () => {

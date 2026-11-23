@@ -145,9 +145,14 @@ export function CourseGradesTab() {
   }
   const hasError = (c: GradeComponent) => (['weight', 'score', 'total'] as const).some((f) => errorOf(c, f))
 
-  // A component with a mistake in it counts as not graded yet, so nothing is worked out from a bad number.
-  const usable = components.map((c) => (hasError(c) ? { ...c, score: null } : c))
+  // A component with a mistake in it is left out of every calculation: it is neither graded nor
+  // remaining work, and gets no what-if. Components that are simply not graded yet still count.
+  const held = components.filter(hasError)
+  const usable = components.filter((c) => !hasError(c))
+  const heldNames = held.map((c) => c.name.trim() || 'a component').join(', ')
   const summary = summarize(usable)
+  /** Weight as entered, for the "adds up to 100%" check. A box being fixed does not change it. */
+  const enteredWeight = summarize(components).totalWeight
   const target = (course && targets[course.id]) ?? 3
   const need = neededAverage(usable, minPercentFor(target, scale))
   const grade = summary.average === null ? null : percentToGrade(summary.average, scale)
@@ -157,7 +162,7 @@ export function CourseGradesTab() {
   const touched = ungraded.some((c) => whatIf[c.id] !== undefined)
 
   if (!course) return null
-  const weightOff = Math.abs(summary.totalWeight - 100) > 0.05
+  const weightOff = Math.abs(enteredWeight - 100) > 0.05
 
   const remove = (c: GradeComponent) => {
     const at = components.findIndex((x) => x.id === c.id)
@@ -177,7 +182,7 @@ export function CourseGradesTab() {
     const n = read(text)
     if (field === 'weight') updateComponent(c.id, { weight: n ?? 0 })
     else if (field === 'score') updateComponent(c.id, { score: n })
-    else updateComponent(c.id, { totalScore: n ?? undefined })
+    else updateComponent(c.id, { totalScore: n })
   }
   /** Leaving a box tidies it, unless it still needs fixing. */
   const done = (c: GradeComponent, field: Field) => {
@@ -223,6 +228,7 @@ export function CourseGradesTab() {
                   {grade !== null ? <Pill>{grade.toFixed(1)}</Pill> : null}
                 </div>
                 <p className="mt-2 text-muted">Average across graded work</p>
+                {held.length ? <p className="mt-1 text-[13px] text-warn">Leaves out {heldNames} until the box marked in red is fixed.</p> : null}
               </>
             )}
             {summary.totalWeight > 0 ? (
@@ -247,7 +253,11 @@ export function CourseGradesTab() {
               </>
             ) : null}
             <div className="mt-3.5 rounded-xl bg-fill px-4 py-3.5" role="status">
-              {need.status === 'empty' ? (
+              {held.length ? (
+                <p>
+                  Fix the box marked in red for <b className="font-semibold">{heldNames}</b> to see what you need on the rest.
+                </p>
+              ) : need.status === 'empty' ? (
                 <p className="text-muted">Add components with weights to see your grade.</p>
               ) : need.status === 'complete' ? (
                 <p>
@@ -391,7 +401,7 @@ export function CourseGradesTab() {
             )}
             <div className="mt-3 border-t border-line pt-3">
               <p>
-                Total weight <b className="font-semibold tabular-nums">{trim(summary.totalWeight)}%</b>
+                Total weight <b className="font-semibold tabular-nums">{trim(enteredWeight)}%</b>
                 {weightOff ? <span className="ml-2 text-[13px] text-warn">Weights should add up to 100%.</span> : null}
               </p>
               <p className="mt-1.5 text-xs text-muted">
@@ -442,7 +452,7 @@ export function CourseGradesTab() {
               </ul>
               {projected !== null ? (
                 <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl bg-surface px-4 py-3.5">
-                  <span className="text-muted">Final grade would be</span>
+                  <span className="text-muted">{held.length ? `Without ${heldNames}, final grade would be` : 'Final grade would be'}</span>
                   <b className="text-xl font-semibold tabular-nums">{projected.toFixed(1)}%</b>
                   <Pill>{percentToGrade(projected, scale).toFixed(1)}</Pill>
                   {touched && baseline !== null ? (

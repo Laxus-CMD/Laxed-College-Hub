@@ -1078,7 +1078,8 @@ describe('points-based grades in the account', () => {
     const again = await openApp(a)
     expect(useGradeStore.getState().components).toEqual([
       { id: 'quiz', courseId: 'c1', name: 'Quiz 1', weight: 30, score: 42, totalScore: 50 },
-      { id: 'exam', courseId: 'c1', name: 'Midterm', weight: 40, score: 90 },
+      // The default, held as an explicit null so a later clear can say so.
+      { id: 'exam', courseId: 'c1', name: 'Midterm', weight: 40, score: 90, totalScore: null },
     ])
 
     // Changing only the total sends it, and clearing it goes back to 100.
@@ -1086,9 +1087,36 @@ describe('points-based grades in the account', () => {
     useGradeStore.getState().updateComponent('quiz', { totalScore: 60 })
     expect(await again.flush()).toBe(true)
     expect(saves[0]!.body.upsert.components).toEqual([{ id: 'quiz', courseId: 'c1', name: 'Quiz 1', weight: 30, score: 42, totalScore: 60 }])
-    useGradeStore.getState().updateComponent('quiz', { totalScore: undefined })
+    saves = []
+    useGradeStore.getState().updateComponent('quiz', { totalScore: null })
     expect(await again.flush()).toBe(true)
+    // Clearing is sent as null on purpose. Leaving it out would mean "keep 60".
+    expect(saves[0]!.body.upsert.components[0]).toHaveProperty('totalScore', null)
     expect((await stored()).components[0]).not.toHaveProperty('totalScore')
+  })
+
+  it('keeps a saved total when a draft left by version 1.6.0 is saved later', async () => {
+    const a = await signUp()
+    const e = await openApp(a)
+    setGrades()
+    expect(await e.flush()).toBe(true)
+    // A 1.6.0 tab renamed the quiz and closed before saving. It never knew about totals.
+    const before = (await stored()).revision ?? 1
+    savePending({
+      accountId: a.id,
+      email: a.email,
+      clientId: 'tab-v160',
+      revision: before,
+      changes: {
+        upsert: { courses: [], sessions: [], tasks: [], notes: [], components: [{ id: 'quiz', courseId: 'c1', name: 'Quiz 1 renamed', weight: 30, score: 42 } as any] },
+        remove: { courses: [], sessions: [], tasks: [], notes: [], components: [] },
+      },
+    })
+    e.stop()
+    useSyncStore.setState(CLOSED)
+    await openApp(a)
+    expect((await stored()).components[0]).toEqual({ id: 'quiz', courseId: 'c1', name: 'Quiz 1 renamed', weight: 30, score: 42, totalScore: 50 })
+    expect(useGradeStore.getState().components[0]).toMatchObject({ name: 'Quiz 1 renamed', totalScore: 50 })
   })
 
   it('keeps a custom total in a change that was not saved before a reload', async () => {

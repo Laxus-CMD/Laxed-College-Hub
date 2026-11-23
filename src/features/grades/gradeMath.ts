@@ -32,7 +32,7 @@ export interface ComponentLike {
   id: string
   weight: number
   score: number | null
-  totalScore?: number
+  totalScore?: number | null
 }
 
 /** Scores without a total are out of 100, so percentages entered before totals existed keep their meaning. */

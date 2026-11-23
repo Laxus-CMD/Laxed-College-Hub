@@ -13,7 +13,7 @@ Patch notes for College Hub. Newest first.
 ### Improved
 
 - **Timer that keeps time:** the ring and the digits come from the same clock, pause together, and are still right when you come back from another tab. New lengths during a session wait for the next interval, and the card says so. When focus ends, the break is ready to start and screen readers hear about it once, not every second.
-- **Clear rules for scores:** total possible is 100 unless you change it, so percentages you already entered mean the same. An empty score is not graded yet, and a 0 counts. A total of 0 or less is explained next to the box and left out of your grade until it is fixed. Boxes can be empty while you type.
+- **Clear rules for scores:** total possible is 100 unless you change it, so percentages you already entered mean the same. An empty score is not graded yet, and a 0 counts. A total of 0 or less is explained next to the box and left out of your grade, the grade you need and the what-if until it is fixed. Boxes can be empty while you type.
 - **Grades page:** your current grade comes first on a phone and stays in view on a wide screen. What-if and the grading scale are quieter.
 - **Remove a component, then Undo in its place:** one tap brings back its score, total and weight, and keyboard focus goes straight to Undo.
 - Buttons and boxes in both features are at least 44 pixels tall, and both work fully with a keyboard.
@@ -21,6 +21,7 @@ Patch notes for College Hub. Newest first.
 ### Under the hood
 
 - Database migration `005_grade_component_total.sql` adds `grade_components.total_score` (empty means 100, and the database refuses 0 or less). It runs during the production build.
+- **Safe alongside older versions:** a component saved without a total, as versions before 1.7.0 do, keeps the total already saved, and the answer carries it back. Only an explicit empty total goes back to 100, so renaming a component in an old tab can no longer turn 42/50 into 42%.
 - The timer is kept in this browser only (`college-hub.pomodoro`). A timer saved by an earlier version starts fresh.
 
 ## 1.6.0 · 2026-11-23 · Changes survive a reload
