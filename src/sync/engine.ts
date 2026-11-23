@@ -8,15 +8,18 @@ import { useScheduleStore } from '@/store/useScheduleStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
-import { apply, cleanDoc, diff, docsEqual, isEmpty, readStores, writeStores, type Changes, type Doc } from '@/sync/doc'
-import { CLOSED, useSyncStore } from '@/sync/useSyncStore'
+import { apply, cleanDoc, diff, docsEqual, isEmpty, KINDS, readStores, writeStores, type Changes, type Doc, type DocProfile, type Kind } from '@/sync/doc'
+import { dropAllPending, dropPending, dropPendingIfSame, hasMemoryOnly, listPending, savePending, type Pending } from '@/sync/pending'
+import { CLOSED, useSyncStore, type LocalCopy } from '@/sync/useSyncStore'
 
 /**
  * Keeps the app's stores and the student's account the same.
  *
  * Guests: the stores save to this browser, as always. This engine does nothing.
- * Accounts: the stores live in memory only. They are filled from the server,
- * and what changes is sent back shortly after each edit.
+ * Accounts: the stores are filled from the server, and what changes is sent back
+ * shortly after each edit. Until the server confirms a change, the difference is
+ * also kept in this browser (see pending.ts), so a reload, a crash or an ended
+ * session does not lose it. It is sent again the next time this account opens.
  *
  * `base` is what the server has, as far as this tab knows. Everything unsaved is
  * simply the difference between `base` and the stores, so nothing can be lost
@@ -26,12 +29,16 @@ import { CLOSED, useSyncStore } from '@/sync/useSyncStore'
 const SAVE_DELAY = 1000
 /** Someone who types without pausing still gets saved this often. */
 const MAX_DELAY = 5000
+/** How soon an edit is written down in this browser. Short, so a crash loses at most this much. */
+const KEEP_DELAY = 300
 const RETRY_FIRST = 2000
 const RETRY_MAX = 60_000
 const TIMEOUT = 30_000
 const RECHECK_AFTER = 30_000
 /** Browsers refuse bigger requests while a page is closing. */
 const KEEPALIVE_LIMIT = 60_000
+/** Each open tab holds a lock with this prefix, so another tab can tell it is still alive. */
+const TAB_LOCK = 'college-hub.tab.'
 
 const STORES = [useScheduleStore, useTaskStore, useNoteStore, useGradeStore, useSettingsStore] as const
 
@@ -67,58 +74,136 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
 
 const newClientId = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : uid('tab').padEnd(8, '0'))
 
+interface LockManagerLike {
+  request(name: string, callback: () => Promise<void>): Promise<void>
+  query(): Promise<{ held?: { name?: string }[] }>
+}
+const locks = (): LockManagerLike | undefined =>
+  typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { locks?: LockManagerLike }).locks
+
+/** Tabs that are open right now. Empty when the browser cannot tell, and then every entry counts as left behind. */
+async function liveTabs(): Promise<Set<string>> {
+  try {
+    const { held = [] } = (await locks()?.query()) ?? {}
+    return new Set(held.map((l) => l.name ?? '').filter((n) => n.startsWith(TAB_LOCK)).map((n) => n.slice(TAB_LOCK.length)))
+  } catch {
+    return new Set()
+  }
+}
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+/**
+ * Leaves out what the server already has. When a save reached the server but its answer
+ * never came back, sending it again then changes nothing.
+ */
+export function notYetApplied(changes: Changes, server: Doc): Changes {
+  const out: Changes = {
+    upsert: { courses: [], sessions: [], tasks: [], notes: [], components: [] },
+    remove: { courses: [], sessions: [], tasks: [], notes: [], components: [] },
+  }
+  for (const kind of KINDS) {
+    const byId = new Map<string, object>(server[kind].map((r) => [r.id, r]))
+    ;(out.upsert as Record<Kind, object[]>)[kind] = (changes.upsert[kind] as { id: string; body?: string }[]).filter((r) => {
+      const now = byId.get(r.id) as Record<string, unknown> | undefined
+      if (!now) return true
+      if (kind === 'notes' && r.body === undefined) {
+        const { title: _t, body: _b, ...links } = now
+        return !same(links, r)
+      }
+      return !same(now, r)
+    })
+    out.remove[kind] = changes.remove[kind].filter((id) => byId.has(id))
+  }
+  const profile = Object.fromEntries(
+    Object.entries(changes.profile ?? {}).filter(([k, v]) => !same(server.profile[k as keyof DocProfile], v)),
+  )
+  if (Object.keys(profile).length) out.profile = profile
+  return out
+}
+
 export class SyncEngine {
   /** Tells the server which tab a save came from, so a retry is not mistaken for another device. */
   private readonly clientId = newClientId()
   private open_: Open | null = null
-  /** Changes whose session ended before they were saved. Kept for when the same person signs in again. */
-  private readonly held = new Map<string, Open & { doc: Doc }>()
   /** Goes up on every sign-in and sign-out, so late answers for an earlier account are ignored. */
   private epoch = 0
   private applying = false
   private saving: Promise<void> | null = null
   private timer: ReturnType<typeof setTimeout> | undefined
+  private keepTimer: ReturnType<typeof setTimeout> | undefined
   private firstUnsavedAt = 0
   private retryDelay = 0
   private lastChecked = 0
   private started = false
+  private readonly stops: (() => void)[] = []
 
   /** Starts watching the stores and the page. Safe to call more than once. */
   start(): void {
     if (this.started) return
     this.started = true
-    for (const store of STORES) store.subscribe(() => this.onChange())
+    this.holdTabLock()
+    for (const store of STORES) this.stops.push(store.subscribe(() => this.onChange()))
     const follow = (account: Account | null) => (account ? void this.open(account) : this.close())
-    useAuthStore.subscribe((s, prev) => {
-      if (s.account !== prev.account) follow(s.account)
+    this.stops.push(
+      useAuthStore.subscribe((s, prev) => {
+        if (s.account !== prev.account) follow(s.account)
+      }),
+    )
+    const on = (target: EventTarget, type: string, fn: (e: Event) => void) => {
+      target.addEventListener(type, fn)
+      this.stops.push(() => target.removeEventListener(type, fn))
+    }
+    on(window, 'online', () => void this.retryNow())
+    on(window, 'focus', () => void this.recheck())
+    on(window, 'pagehide', () => {
+      this.keepNow()
+      void this.save({ closing: true })
     })
-    follow(useAuthStore.getState().account)
-    window.addEventListener('online', () => void this.retryNow())
-    window.addEventListener('focus', () => void this.recheck())
-    window.addEventListener('pagehide', () => void this.save({ closing: true }))
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') void this.save({ closing: true })
-      else void this.recheck()
+    on(document, 'visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        this.keepNow()
+        void this.save({ closing: true })
+      } else void this.recheck()
     })
-    window.addEventListener('beforeunload', (e) => {
+    on(window, 'beforeunload', (e) => {
+      this.keepNow()
       if (!this.hasUnsaved()) return
       void this.save({ closing: true })
+      // Kept in this browser, so it is saved next time. Only ask when it would be lost.
+      if (useSyncStore.getState().local === 'device' && !hasMemoryOnly()) return
       e.preventDefault()
     })
     // Another tab signed in, out, or to someone else. All tabs share one session cookie.
-    window.addEventListener('storage', (e) => {
-      if (e.key === useAuthStore.persist.getOptions().name) void useAuthStore.persist.rehydrate()
+    on(window, 'storage', (e) => {
+      if ((e as StorageEvent).key === useAuthStore.persist.getOptions().name) void useAuthStore.persist.rehydrate()
     })
+    useSyncStore.setState({ heldFor: this.heldFor(useSyncStore.getState().accountId) })
+    follow(useAuthStore.getState().account)
+  }
+
+  /**
+   * Stops watching without saving or writing anything down, like a tab that is closed
+   * or crashes. For tests and hot reload.
+   */
+  stop(): void {
+    while (this.stops.length) this.stops.pop()!()
+    clearTimeout(this.timer)
+    clearTimeout(this.keepTimer)
+    this.epoch++
+    this.open_ = null
+    this.saving = null
+    this.started = false
   }
 
   hasUnsaved(): boolean {
-    if (this.held.size) return true
+    if (hasMemoryOnly()) return true
     return this.open_ !== null && (this.saving !== null || !docsEqual(this.open_.base, readStores()))
   }
 
   // --- Signing in and out ---------------------------------------------------
 
-  /** Shows this account's data, loading it first. */
+  /** Shows this account's data, loading it first, and saves what an earlier visit left unsaved. */
   async open(account: Account): Promise<void> {
     const sync = useSyncStore.getState()
     if (sync.accountId === account.id && sync.phase !== 'load-error') {
@@ -128,34 +213,78 @@ export class SyncEngine {
     this.leave()
     const epoch = ++this.epoch
     setDeviceStorage(false)
-    useSyncStore.setState({ accountId: account.id, phase: 'loading', status: 'saved', message: null })
-
-    const held = this.held.get(account.id)
-    if (held) {
-      // Carry on from where the last session ended. The server merges and answers with everything.
-      this.held.delete(account.id)
-      this.open_ = { account, base: held.base, revision: held.revision }
-      this.fillStores(held.doc)
-      useSyncStore.setState({ phase: 'ready', heldFor: this.heldFor() })
-      await this.save()
-      return
-    }
+    useSyncStore.setState({
+      accountId: account.id,
+      phase: 'loading',
+      status: 'saved',
+      local: 'none',
+      message: null,
+      heldFor: this.heldFor(account.id),
+    })
 
     try {
       const res = await withTimeout(request<LoadResponse>('GET', '/data'))
       if (epoch !== this.epoch) return
       if (res.accountId !== account.id || !res.data) return await this.followSession(epoch)
-      const base = this.fromServer(res.data)
-      this.open_ = { account, base, revision: res.revision }
+      const open: Open = { account, base: this.fromServer(res.data), revision: res.revision }
+      const { saved, refused } = await this.recover(open, epoch)
+      if (epoch !== this.epoch) return
+      this.open_ = open
       this.lastChecked = Date.now()
-      this.fillStores(base)
+      // What the account cannot take stays on screen, so the student can see it and fix it.
+      this.fillStores(refused.reduce((doc, r) => apply(doc, r.changes), open.base))
       useSyncStore.setState({ phase: 'ready' })
+      // Written down under this tab before the old entries go, so a crash in between loses nothing.
+      this.settled()
+      // Only once that copy is really on the device. If the browser refused it, the old entries
+      // are the only copy that survives a reload, so they stay.
+      if (useSyncStore.getState().local !== 'memory') {
+        for (const { entry } of refused) if (entry.clientId !== this.clientId) dropPendingIfSame(entry)
+      }
+      if (refused.length) void this.save()
       if (res.revision === 0) useSettingsStore.getState().setName(account.name.split(' ')[0]!.slice(0, 30))
+      if (saved) useUiStore.getState().showToast({ message: 'Changes from your last visit were saved to your account.' })
     } catch (err) {
       if (epoch !== this.epoch) return
       if (isStatus(err, 401)) return useAuthStore.getState().sessionEnded()
+      if (isStatus(err, 409)) return await this.followSession(epoch)
       useSyncStore.setState({ phase: 'load-error', message: err instanceof Error ? err.message : 'Something went wrong.' })
     }
+  }
+
+  /**
+   * Sends changes that earlier visits kept in this browser, oldest first, each as the tab
+   * that made it. Entries from tabs that are still open are left to them.
+   * Throws when the server cannot be reached, and then every entry stays for next time.
+   */
+  private async recover(open: Open, epoch: number): Promise<{ saved: number; refused: { entry: Pending; changes: Changes }[] }> {
+    const live = await liveTabs()
+    let saved = 0
+    const refused: { entry: Pending; changes: Changes }[] = []
+    for (const p of listPending(open.account.id)) {
+      if (p.clientId !== this.clientId && live.has(p.clientId)) continue
+      const changes = notYetApplied(p.changes, open.base)
+      // From here on, only this exact entry may be deleted. Anything written under the same key
+      // while a request is out, for example by the tab that made it, is newer and stays.
+      if (isEmpty(changes)) {
+        dropPendingIfSame(p)
+        continue
+      }
+      try {
+        const body = { accountId: p.accountId, clientId: p.clientId, baseRevision: p.revision, ...changes }
+        const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body))
+        if (epoch !== this.epoch) return { saved, refused }
+        open.base = res.data ? this.fromServer(res.data) : apply(open.base, changes)
+        open.revision = res.revision
+        dropPendingIfSame(p)
+        saved++
+      } catch (err) {
+        // Sending it again would not help. Show it instead, so the student can make room or fix it.
+        if (isStatus(err, 400, 413, 422)) refused.push({ entry: p, changes })
+        else throw err
+      }
+    }
+    return { saved, refused }
   }
 
   /** Signed out. Takes the account's data out of the app and brings back what a guest saved in this browser. */
@@ -168,28 +297,33 @@ export class SyncEngine {
       setDeviceStorage(true)
       for (const store of STORES) void store.persist.rehydrate()
     })
-    useSyncStore.setState({ ...CLOSED, heldFor: this.heldFor() })
+    useSyncStore.setState({ ...CLOSED, heldFor: this.heldFor(null) })
   }
 
-  /** Drops unsaved changes on purpose: the student chose to sign out anyway, or deleted the account. */
+  /**
+   * Deletes the open account's unsaved changes from this tab and this browser, on purpose:
+   * the student chose to sign out anyway, or deleted the account.
+   */
   discard(): void {
     clearTimeout(this.timer)
-    if (this.open_) this.held.delete(this.open_.account.id)
+    clearTimeout(this.keepTimer)
+    if (this.open_) dropAllPending(this.open_.account.id)
     this.open_ = null
     this.epoch++
-    useSyncStore.setState({ heldFor: this.heldFor() })
+    useSyncStore.setState({ local: 'none', heldFor: this.heldFor(useSyncStore.getState().accountId) })
   }
 
-  /** Stops syncing the open account, and keeps anything unsaved in memory. */
+  /** Deletes changes kept in this browser for an account that is not open. For shared computers. */
+  forget(accountId: string): void {
+    if (this.open_?.account.id === accountId) return
+    dropAllPending(accountId)
+    useSyncStore.setState({ heldFor: this.heldFor(useSyncStore.getState().accountId) })
+  }
+
+  /** Stops syncing the open account. Anything unsaved stays in this browser for next time. */
   private leave(): void {
     clearTimeout(this.timer)
-    if (this.open_) {
-      const doc = readStores()
-      if (!docsEqual(this.open_.base, doc)) {
-        this.held.set(this.open_.account.id, { ...this.open_, doc })
-        useSyncStore.setState({ heldFor: this.heldFor() })
-      }
-    }
+    this.keepNow()
     this.open_ = null
     this.saving = null
     this.retryDelay = 0
@@ -212,10 +346,36 @@ export class SyncEngine {
     }
   }
 
+  // --- Keeping unsaved changes in this browser ------------------------------
+
+  /** Writes down what the server has not confirmed yet, or deletes the entry when that is nothing. */
+  keepNow(): void {
+    clearTimeout(this.keepTimer)
+    const open = this.open_
+    if (!open) return
+    const changes = diff(open.base, readStores())
+    let local: LocalCopy = 'none'
+    if (isEmpty(changes)) dropPending(open.account.id, this.clientId)
+    else {
+      local = savePending({ accountId: open.account.id, email: open.account.email, clientId: this.clientId, revision: open.revision, changes })
+    }
+    if (useSyncStore.getState().local !== local) useSyncStore.setState({ local })
+  }
+
+  private holdTabLock(): void {
+    let release = () => {}
+    locks()
+      ?.request(TAB_LOCK + this.clientId, () => new Promise<void>((resolve) => (release = resolve)))
+      .catch(() => {})
+    this.stops.push(() => release())
+  }
+
   // --- Saving ---------------------------------------------------------------
 
   private onChange(): void {
     if (this.applying || !this.open_) return
+    clearTimeout(this.keepTimer)
+    this.keepTimer = setTimeout(() => this.keepNow(), KEEP_DELAY)
     const now = Date.now()
     this.firstUnsavedAt ||= now
     // After a failure, wait for the retry that is already scheduled.
@@ -250,6 +410,7 @@ export class SyncEngine {
     const epoch = this.epoch
     this.fillStores(doc)
     useSyncStore.setState({ status: 'unsaved' })
+    this.keepNow()
     if (await this.flush()) return 'saved'
     const { status, message } = useSyncStore.getState()
     if (epoch !== this.epoch || status !== 'blocked') return 'pending'
@@ -308,13 +469,15 @@ export class SyncEngine {
   private settled(): void {
     const clean = this.open_ !== null && docsEqual(this.open_.base, readStores())
     if (clean) this.firstUnsavedAt = 0
+    this.keepNow()
     useSyncStore.setState({ status: clean ? 'saved' : 'unsaved', message: null })
   }
 
   private failed(err: unknown): void {
     const message = err instanceof Error ? err.message : 'Something went wrong.'
+    this.keepNow()
     if (isStatus(err, 401)) {
-      // `close` follows and keeps the unsaved changes until they sign in again.
+      // `close` follows, and the unsaved changes stay in this browser until they sign in again.
       useAuthStore.getState().sessionEnded()
       return
     }
@@ -388,8 +551,9 @@ export class SyncEngine {
     this.quietly(() => writeStores(doc))
   }
 
-  private heldFor(): string | null {
-    return [...this.held.values()][0]?.account.email ?? null
+  /** Someone other than `openId` with changes waiting in this browser. */
+  private heldFor(openId: string | null): string | null {
+    return listPending().find((p) => p.accountId !== openId)?.email ?? null
   }
 
   /** Changes the stores without counting it as an edit. */

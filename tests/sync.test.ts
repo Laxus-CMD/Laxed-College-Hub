@@ -20,6 +20,7 @@ import { useUiStore } from '@/store/useUiStore'
 import { mergeImport, readDeviceDoc } from '@/sync/deviceData'
 import { cleanDoc, readStores } from '@/sync/doc'
 import { SyncEngine } from '@/sync/engine'
+import { listPending, resetPendingMemory, savePending } from '@/sync/pending'
 import { CLOSED, useSyncStore } from '@/sync/useSyncStore'
 
 const ORIGIN = 'http://localhost:5173'
@@ -130,6 +131,7 @@ const titles = () => useTaskStore.getState().tasks.map((t) => t.title)
 
 beforeEach(() => {
   localStorage.clear()
+  resetPendingMemory()
   saves = []
   network = null
   afterServer = null
@@ -483,7 +485,9 @@ describe('when saving fails', () => {
     await e.save()
     expect(useAuthStore.getState().account).toBeNull()
     expect(useSyncStore.getState().heldFor).toBe(a.email)
-    expect(e.hasUnsaved()).toBe(true)
+    // Kept in this browser, so it is not lost if this tab closes before they sign in.
+    expect(listPending(a.id).flatMap((p) => p.changes.upsert.tasks.map((t) => t.title))).toEqual(['before the session ended'])
+    expect(e.hasUnsaved()).toBe(false)
     expect(titles()).not.toContain('before the session ended')
 
     // Meanwhile another device saves too.
@@ -498,6 +502,7 @@ describe('when saving fails', () => {
     expect(data.notes[0].body).toBe('long text')
     expect(useSyncStore.getState().heldFor).toBeNull()
     expect(e.hasUnsaved()).toBe(false)
+    expect(listPending()).toEqual([])
   })
 
   it('does not give held changes to a different student', async () => {
@@ -534,7 +539,7 @@ describe('when saving fails', () => {
     expect(saves.map((s) => s.keepalive)).toEqual([true, false])
   })
 
-  it('warns before closing only while something is unsaved', async () => {
+  it('warns before closing only while something unsaved would be lost', async () => {
     const a = await signUp()
     const e = await startApp(a)
     await e.flush()
@@ -545,11 +550,21 @@ describe('when saving fails', () => {
     }
     expect(leave()).toBe(false)
     network = () => Promise.reject(new TypeError('offline'))
-    addTask('unsaved')
+    addTask('kept on this device')
+    // Written down right away when the page closes, so it is saved next time: no need to ask.
+    expect(leave()).toBe(false)
+    expect(listPending(a.id)).toHaveLength(1)
+    // If the browser will not keep it, closing would lose it.
+    const refuse = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    addTask('only in this tab')
     expect(leave()).toBe(true)
+    refuse.mockRestore()
     network = null
     await e.flush()
     expect(leave()).toBe(false)
+    expect(listPending()).toEqual([])
   })
 })
 
@@ -610,7 +625,9 @@ describe('accounts and the browser', () => {
     expect(titles()).toEqual([])
     addTask('B task')
     expect(await e.flush()).toBe(true)
-    expect(e.hasUnsaved()).toBe(true) // A's task is still held for A.
+    // A's task is still kept for A, and only for A.
+    expect(listPending(a.id).flatMap((p) => p.changes.upsert.tasks.map((t) => t.title))).toEqual(['A task'])
+    expect(listPending(b.id)).toEqual([])
     expect((await stored()).tasks.map((t: any) => t.title)).toEqual(['B task'])
   })
 
@@ -762,5 +779,272 @@ describe('importing', () => {
     await signIn(a)
     useAuthStore.getState().signInAccount(a)
     await vi.waitFor(async () => expect((await stored()).courses).toHaveLength(5))
+  })
+})
+
+describe('after a reload or crash', () => {
+  /** The tab goes away without its page-closing handlers running, like a crash or a killed browser. */
+  function crash(e: SyncEngine) {
+    e.stop()
+    // A fresh page starts with empty stores.
+    for (const s of [useScheduleStore, useTaskStore, useNoteStore, useGradeStore, useSettingsStore]) (s.setState as (x: unknown) => void)(s.getInitialState())
+    useSyncStore.setState(CLOSED)
+    useUiStore.setState({ toast: null })
+  }
+  const offline = () => {
+    network = () => Promise.reject(new TypeError('Failed to fetch'))
+  }
+  const serverTitles = async () => ((await stored()).tasks.map((t: any) => t.title) as string[]).sort()
+
+  it('saves what was typed offline once a reloaded tab is back online', async () => {
+    const a = await signUp()
+    const e = await openApp(a)
+    await e.flush()
+    offline()
+    addTask('typed offline')
+    await e.save()
+    expect(useSyncStore.getState()).toMatchObject({ status: 'retrying', local: 'device' })
+    crash(e)
+
+    // Reloaded while still offline: nothing is lost, and nothing is shown that is not real.
+    useAuthStore.setState({ account: a, guest: false })
+    const again = newEngine()
+    await again.open(a)
+    expect(useSyncStore.getState().phase).toBe('load-error')
+    expect(listPending(a.id)).toHaveLength(1)
+
+    network = null
+    await again.open(a)
+    expect(useSyncStore.getState()).toMatchObject({ phase: 'ready', status: 'saved', local: 'none' })
+    expect(titles()).toEqual(['typed offline'])
+    expect(await serverTitles()).toEqual(['typed offline'])
+    expect(listPending()).toEqual([])
+    expect(useUiStore.getState().toast?.message).toMatch(/last visit were saved/)
+  })
+
+  it('saves edits made during a save whose answer never came, without doubling or copying anything', async () => {
+    const a = await signUp()
+    const e = await openApp(a)
+    const id = useNoteStore.getState().addNote({ title: 'Lecture', body: 'first draft' })
+    await e.flush()
+    useNoteStore.getState().updateNote(id, { body: 'second draft' })
+    addTask('in the save')
+    // The save reaches the server and is stored, then the tab dies before hearing back.
+    afterServer = (_m, path) => (path.endsWith('/data/sync') ? new Promise<void>(() => {}) : undefined)
+    void e.save()
+    await vi.waitFor(async () => expect((await stored()).notes[0].body).toBe('second draft'))
+    addTask('typed while saving')
+    e.keepNow() // The short timer after an edit does this.
+    expect(useSyncStore.getState().local).toBe('device')
+    const firstTab = saves[saves.length - 1]!.body.clientId
+    afterServer = null
+    crash(e)
+
+    saves = []
+    await openApp(a)
+    expect(saves).toHaveLength(1)
+    // Sent as the tab that made it, and without what the server already had.
+    expect(saves[0]!.body).toMatchObject({ clientId: firstTab, upsert: { notes: [] } })
+    expect(saves[0]!.body.upsert.tasks.map((t: any) => t.title)).toEqual(['typed while saving'])
+    const data = await stored()
+    expect(data.notes.map((n: any) => [n.title, n.body])).toEqual([['Lecture', 'second draft']])
+    expect(await serverTitles()).toEqual(['in the save', 'typed while saving'])
+    expect(listPending()).toEqual([])
+  })
+
+  it('still keeps both versions of a note edited elsewhere before the tab came back', async () => {
+    const a = await signUp()
+    const e = await openApp(a)
+    useNoteStore.setState({ notes: [note('n1', 'start')] })
+    await e.flush()
+    offline()
+    useNoteStore.getState().updateNote('n1', { body: 'laptop version' })
+    await e.save()
+    crash(e)
+    network = null
+    await otherDevice(a, { upsert: { notes: [note('n1', 'phone version')] } })
+
+    await openApp(a)
+    const bodies = (await stored()).notes.map((n: any) => n.body).sort()
+    expect(bodies).toEqual(['laptop version', 'phone version'])
+    expect(useNoteStore.getState().notes.map((n) => n.body).sort()).toEqual(['laptop version', 'phone version'])
+  })
+
+  it('gives kept changes only to their own account, even after a reload', async () => {
+    const a = await signUp()
+    const e = await openApp(a)
+    await e.flush()
+    offline()
+    addTask('private to A')
+    await e.save()
+    crash(e)
+    network = null
+
+    const b = await signUp()
+    await openApp(b)
+    expect(titles()).toEqual([])
+    expect(await serverTitles()).toEqual([])
+    expect(useSyncStore.getState().heldFor).toBe(a.email)
+    expect(listPending(a.id)).toHaveLength(1)
+
+    await signIn(a)
+    await openApp(a)
+    expect(await serverTitles()).toEqual(['private to A'])
+    expect(listPending()).toEqual([])
+  })
+
+  /** The raw drafts in localStorage, unescaped, so a title can be matched with its quotes. */
+  const draftsOnDevice = () =>
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('college-hub.pending.'))
+      .map((k) => localStorage.getItem(k))
+      .join(' ')
+
+  /** Offline, a task written down on the device, then renamed while the browser refuses to store more. */
+  async function renamedWhileStorageRefuses() {
+    const a = await signUp()
+    const e = await openApp(a)
+    await e.flush()
+    offline()
+    addTask('first')
+    await e.save()
+    expect(listPending(a.id)).toHaveLength(1)
+    const refuse = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    useTaskStore.getState().updateTask(useTaskStore.getState().tasks[0]!.id, { title: 'renamed' })
+    e.keepNow()
+    expect(useSyncStore.getState().local).toBe('memory')
+    expect(e.hasUnsaved()).toBe(true)
+    return { a, e, refuse }
+  }
+
+  it('says so when the browser will not keep a copy, and keeps the last copy it did', async () => {
+    const { a, e, refuse } = await renamedWhileStorageRefuses()
+    // The rename is only in this tab, but the task itself is still on the device.
+    expect(draftsOnDevice()).toMatch(/"first"/)
+    refuse.mockRestore()
+    resetPendingMemory()
+    crash(e)
+    network = null
+    await openApp(a)
+    // The rename was lost with the tab, as the status warned. The task was not.
+    expect(await serverTitles()).toEqual(['first'])
+    expect(listPending()).toEqual([])
+  })
+
+  it('never sends that older copy once the newer changes are saved', async () => {
+    const { a, e, refuse } = await renamedWhileStorageRefuses()
+    network = null
+    // Still refusing to store, but the connection is back and the rename reaches the account.
+    expect(await e.flush()).toBe(true)
+    expect(draftsOnDevice()).not.toMatch(/"first"/)
+    expect(listPending()).toEqual([])
+    refuse.mockRestore()
+    crash(e)
+    await openApp(a)
+    expect(await serverTitles()).toEqual(['renamed'])
+  })
+
+  it('leaves changes from a tab that is still open to that tab', async () => {
+    const a = await signUp()
+    const other = 'tab-still-open'
+    savePending({
+      accountId: a.id,
+      email: a.email,
+      clientId: other,
+      revision: 0,
+      changes: {
+        upsert: { courses: [], sessions: [], tasks: [{ id: 't-open', kind: 'todo', title: 'other tab', done: false, source: 'manual' } as any], notes: [], components: [] },
+        remove: { courses: [], sessions: [], tasks: [], notes: [], components: [] },
+      },
+    })
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      locks: { request: () => new Promise(() => {}), query: async () => ({ held: [{ name: `college-hub.tab.${other}` }] }) },
+    })
+    await openApp(a)
+    expect(await serverTitles()).toEqual([])
+    expect(listPending(a.id)).toHaveLength(1)
+  })
+
+  it('deletes kept changes when the student signs out anyway', async () => {
+    const a = await signUp()
+    const e = await openApp(a)
+    await e.flush()
+    offline()
+    addTask('dropped on purpose')
+    await e.save()
+    expect(listPending(a.id)).toHaveLength(1)
+    e.discard()
+    expect(listPending()).toEqual([])
+    expect(JSON.stringify({ ...localStorage })).not.toMatch(/dropped on purpose/)
+  })
+})
+
+describe('recovery never deletes the last kept copy', () => {
+  const NONE = { courses: [], sessions: [], tasks: [], notes: [], components: [] }
+  const keptTask = (a: Account, clientId: string, title: string, revision = 0) =>
+    savePending({
+      accountId: a.id,
+      email: a.email,
+      clientId,
+      revision,
+      changes: { upsert: { ...NONE, tasks: [{ id: 't-kept', kind: 'todo', title, done: false, source: 'manual' } as any] }, remove: { ...NONE } },
+    })
+  const keptTitles = (a: Account) => listPending(a.id).flatMap((p) => p.changes.upsert.tasks.map((t) => t.title))
+
+  it('keeps the original draft when the account refuses it and the browser will not store the replacement', async () => {
+    const a = await signUp()
+    keptTask(a, 'tab-gone', 'refused by the account')
+    // The account refuses the recovered save.
+    network = (method, path) =>
+      method === 'POST' && path.endsWith('/data/sync')
+        ? new Response(JSON.stringify({ error: 'Your account is full.' }), { status: 422, headers: { 'Content-Type': 'application/json' } })
+        : undefined
+    // And the browser refuses to store the copy written under the new tab.
+    const refuse = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    try {
+      const e = await openApp(a)
+      expect(titles()).toEqual(['refused by the account'])
+      await vi.waitFor(() => expect(useSyncStore.getState()).toMatchObject({ status: 'blocked', local: 'memory' }))
+      e.stop()
+    } finally {
+      refuse.mockRestore()
+    }
+    network = null
+    // A fresh page: this tab's memory is gone.
+    resetPendingMemory()
+    expect(keptTitles(a)).toEqual(['refused by the account'])
+  })
+
+  it('keeps a newer draft the original tab writes while its older one is being recovered', async () => {
+    const a = await signUp()
+    keptTask(a, 'tab-other', 'older')
+    let release = () => {}
+    const held = new Promise<void>((r) => (release = r))
+    afterServer = (method, path) => {
+      if (method !== 'POST' || !path.endsWith('/data/sync')) return
+      afterServer = null
+      return held
+    }
+    const opening = openApp(a)
+    // The server has stored the older draft, and its answer is on hold.
+    await vi.waitFor(async () => expect((await stored()).tasks.map((t: any) => t.title)).toEqual(['older']))
+    // Meanwhile the tab that made it writes something newer.
+    keptTask(a, 'tab-other', 'newer')
+    release()
+    const first = await opening
+    expect(keptTitles(a)).toEqual(['newer'])
+
+    // And the newer one is saved the next time the account opens, on a fresh page.
+    first.stop()
+    useSyncStore.setState(CLOSED)
+    resetPendingMemory()
+    await openApp(a)
+    expect((await stored()).tasks.map((t: any) => t.title)).toEqual(['newer'])
+    expect(listPending()).toEqual([])
   })
 })

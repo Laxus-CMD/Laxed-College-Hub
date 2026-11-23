@@ -6,7 +6,21 @@ import type { Account } from '@/features/auth/api'
 import { resetStores } from '@/test/seed'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useTaskStore } from '@/store/useTaskStore'
+import { listPending, savePending } from '@/sync/pending'
 import { useSyncStore } from '@/sync/useSyncStore'
+
+/** What a tab had not saved when it was reloaded or closed. */
+const keptTask = (title: string, clientId = 'tab-before-reload') =>
+  savePending({
+    accountId: STUDENT.id,
+    email: STUDENT.email,
+    clientId,
+    revision: 1,
+    changes: {
+      upsert: { courses: [], sessions: [], tasks: [{ id: 't-kept', kind: 'todo', title, done: false, source: 'manual' }], notes: [], components: [] },
+      remove: { courses: [], sessions: [], tasks: [], notes: [], components: [] },
+    },
+  })
 
 const ADMIN: Account = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -210,7 +224,7 @@ describe('data in the account', () => {
     const u = userEvent.setup()
     await screen.findByRole('navigation', { name: 'Main menu' })
     useTaskStore.getState().addTask({ kind: 'todo', title: 'Read chapter 6' })
-    expect(await screen.findByRole('alert', {}, { timeout: 4000 })).toHaveTextContent(/not saved yet. Keep this page open/)
+    expect(await screen.findByRole('alert', {}, { timeout: 4000 })).toHaveTextContent(/kept on this device but are not in your account yet/)
     fail = false
     await u.click(screen.getByRole('button', { name: 'Try now' }))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
@@ -238,18 +252,76 @@ describe('data in the account', () => {
     useTaskStore.getState().addTask({ kind: 'todo', title: 'Last task' })
     const dialog = await openSettings(u)
     await u.click(within(dialog).getByRole('button', { name: 'Sign out' }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('they are lost')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('deleted from this device')
     expect(calls).not.toContain('POST /api/auth/logout')
     await u.click(within(dialog).getByRole('button', { name: 'Sign out anyway' }))
     expect(await screen.findByRole('button', { name: 'Continue without an account' })).toBeInTheDocument()
-    expect(screen.queryByText(/signed out before everything was saved/)).not.toBeInTheDocument()
+    // Signing out anyway is a choice to drop them, so nothing is left on this computer.
+    expect(screen.queryByText(/are kept on this device/)).not.toBeInTheDocument()
+    expect(listPending()).toEqual([])
   })
 
   it('asks to sign in again when the session ends with unsaved changes', async () => {
     signedIn({ 'POST /api/data/sync': () => [401, { error: 'Please sign in.' }] })
     await screen.findByRole('navigation', { name: 'Main menu' })
     useTaskStore.getState().addTask({ kind: 'todo', title: 'Last task' })
-    expect(await screen.findByRole('alert', {}, { timeout: 4000 })).toHaveTextContent(`sign in as ${STUDENT.email}`)
+    expect(await screen.findByRole('alert', {}, { timeout: 4000 })).toHaveTextContent(`Sign in as ${STUDENT.email} to save them`)
+  })
+
+  it('saves changes kept from the last visit, as the tab that made them', async () => {
+    keptTask('Typed before the reload')
+    const sent: any[] = []
+    signedIn({
+      'POST /api/data/sync': (b) => {
+        sent.push(b)
+        return [200, { revision: 2, data: null, noteCopies: {} }]
+      },
+    })
+    expect(await screen.findByText('Changes from your last visit were saved to your account.')).toBeInTheDocument()
+    expect(sent[0]).toMatchObject({ accountId: STUDENT.id, clientId: 'tab-before-reload', baseRevision: 1 })
+    expect(useTaskStore.getState().tasks.map((t) => t.title)).toEqual(['Typed before the reload'])
+    expect(listPending()).toEqual([])
+    expect(screen.getAllByText('Saved').length).toBeGreaterThan(0)
+  })
+
+  it('keeps changes from before a reload while the server cannot be reached', async () => {
+    keptTask('Typed offline')
+    signedIn({ 'GET /api/data': () => [503, { error: 'College Hub is temporarily unavailable.' }] })
+    expect(await screen.findByRole('heading', { name: 'Could not load your data' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('kept on this device')
+    expect(listPending(STUDENT.id)).toHaveLength(1)
+  })
+
+  it('lets someone delete kept changes from a shared computer', async () => {
+    keptTask('Private plans', 'tab-gone')
+    mockApi(options)
+    render(<App />)
+    const u = userEvent.setup()
+    const held = await screen.findByRole('alert')
+    expect(held).toHaveTextContent(`Sign in as ${STUDENT.email} to save them`)
+    await u.click(within(held).getByRole('button', { name: 'Delete from this device' }))
+    expect(listPending()).toHaveLength(1)
+    await u.click(within(held).getByRole('button', { name: 'Click again to delete them' }))
+    await waitFor(() => expect(screen.queryByText(/are kept on this device/)).not.toBeInTheDocument())
+    expect(listPending()).toEqual([])
+    expect(JSON.stringify({ ...localStorage })).not.toMatch(/Private plans/)
+  })
+
+  it('says when this browser will not keep guest data', async () => {
+    mockApi(options)
+    useAuthStore.setState({ account: null, guest: true })
+    const refuse = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    try {
+      render(<App />)
+      useTaskStore.getState().addTask({ kind: 'todo', title: 'Not kept' })
+      expect(await screen.findByRole('alert')).toHaveTextContent(/not letting College Hub save/)
+      expect(screen.getByRole('button', { name: 'Download my data' })).toBeInTheDocument()
+      expect(screen.getAllByText('Not saved').length).toBeGreaterThan(0)
+    } finally {
+      refuse.mockRestore()
+    }
   })
 
   it('tells guests where their data is', async () => {

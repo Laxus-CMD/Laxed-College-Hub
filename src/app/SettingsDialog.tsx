@@ -106,7 +106,7 @@ export function SettingsDialog() {
         </section>
         {leaving === 'unsaved' ? (
           <p role="alert" className="text-[13px] text-bad">
-            Your latest changes are not saved yet. If you sign out now, they are lost.
+            Your latest changes are not in your account yet. If you sign out now, they are deleted from this device and lost.
           </p>
         ) : null}
         <div className="text-[13px] text-muted">

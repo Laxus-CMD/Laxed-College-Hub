@@ -8,6 +8,9 @@ import { PRIVACY_URL, TERMS_URL } from '@/features/auth/legal'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useResolvedMode } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
+import { Button } from '@/components/ui/Button'
+import { sync } from '@/sync/engine'
+import { listPending } from '@/sync/pending'
 import { useSyncStore } from '@/sync/useSyncStore'
 
 const HIGHLIGHTS = [
@@ -99,6 +102,27 @@ function Or() {
   )
 }
 
+/** Changes an account made on this device that are not in the account yet. */
+function HeldChanges({ email }: { email: string }) {
+  const [armed, setArmed] = useState(false)
+  const forget = () => {
+    if (!armed) return setArmed(true)
+    for (const p of listPending()) if (p.email === email) sync.forget(p.accountId)
+    setArmed(false)
+  }
+  return (
+    <div role="alert" className="flex flex-col gap-2 rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-warn">
+      <p>
+        Changes for {email} are kept on this device but are not in that account yet. Sign in as {email} to save them.
+      </p>
+      <p className="text-muted">Not yours, or on a shared computer? You can delete them from this device instead.</p>
+      <Button size="sm" variant={armed ? 'destructive' : 'ghost'} className="self-start" onClick={forget}>
+        {armed ? 'Click again to delete them' : 'Delete from this device'}
+      </Button>
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
   const heldFor = useSyncStore((s) => s.heldFor)
@@ -149,11 +173,7 @@ export default function LoginPage() {
           </ul>
 
           <div className="mt-8 flex flex-col gap-3">
-            {heldFor ? (
-              <p role="alert" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-warn">
-                You were signed out before everything was saved. Keep this tab open and sign in as {heldFor} to save your changes.
-              </p>
-            ) : null}
+            {heldFor ? <HeldChanges email={heldFor} /> : null}
             {options === null ? (
               <p role="note" className="rounded-xl bg-fill px-3.5 py-2.5 text-[13px] text-muted">
                 Sign-in is offline right now. You can still continue without an account.
