@@ -7,13 +7,18 @@ import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
+import { useStorageHealth } from '@/lib/storage'
 import { sync } from '@/sync/engine'
+import { dropPending, listPending, resetPendingMemory } from '@/sync/pending'
 
 /** Puts every store back to the demo data for a given moment. Used by tests. */
 export function resetStores(now: Date): void {
   // Forget any account from the test before.
   sync.discard()
   sync.close()
+  for (const p of listPending()) dropPending(p.accountId, p.clientId)
+  resetPendingMemory()
+  useStorageHealth.setState({ ok: true })
   const demo = makeDemoData(now)
   useScheduleStore.setState({ courses: demo.courses, sessions: demo.sessions })
   useTaskStore.setState({ tasks: demo.tasks })

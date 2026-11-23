@@ -1,4 +1,16 @@
+import { create } from 'zustand'
 import { createJSONStorage } from 'zustand/middleware'
+
+/**
+ * Whether the browser accepted the last thing written to it. False after private
+ * mode, a full disk or a policy refused a write, so the app can say that what is
+ * on screen will not survive a reload.
+ */
+export const useStorageHealth = create<{ ok: boolean }>()(() => ({ ok: true }))
+
+const healthy = (ok: boolean) => {
+  if (useStorageHealth.getState().ok !== ok) useStorageHealth.setState({ ok })
+}
 
 /**
  * localStorage that never throws. If the browser blocks storage (private mode,
@@ -19,6 +31,8 @@ const safeStorage: Storage = {
     memory.clear()
   },
   getItem(key) {
+    // Only writes the browser refused are kept here, so they are newer than its copy.
+    if (memory.has(key)) return memory.get(key)!
     try {
       return localStorage.getItem(key)
     } catch {
@@ -39,8 +53,11 @@ const safeStorage: Storage = {
   setItem(key, value) {
     try {
       localStorage.setItem(key, value)
+      memory.delete(key)
+      healthy(true)
     } catch {
       memory.set(key, value)
+      healthy(false)
     }
   },
 }

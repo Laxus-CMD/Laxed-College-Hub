@@ -161,12 +161,15 @@ A role can only be one of the two rows in `roles`, so adding a role (for example
 ### How the app saves (`src/sync/`)
 
 - **Guests:** the Zustand stores persist to `localStorage`, as before. Nothing is sent.
-- **Accounts:** the stores live in memory only. `setDeviceStorage(false)` stops them touching the browser. Data loads after sign-in, and the app shows nothing until it has.
+- **Accounts:** the stores live in memory. `setDeviceStorage(false)` stops them touching the browser. Data loads after sign-in, and the app shows nothing until it has.
+- **Unconfirmed changes** (`pending.ts`): the difference the server has not confirmed is also written to `localStorage` 300 ms after an edit and when the page hides, as `college-hub.pending.<accountId>.<tabId>`. Only the difference, never the whole account, and it is deleted as soon as the server confirms. Each entry keeps the revision it was based on and the tab id, so sending it after a reload is judged by the server exactly as the first try would have been: a save that did reach the server changes nothing twice, and no note is mistaken for an edit from another device.
+- **After a reload or crash:** opening the account loads the server copy, leaves out what it already has, then sends each left-behind entry as the tab that made it, oldest first. Entries of tabs that are still open (Web Locks) are left to them. If the server cannot be reached, the entries stay and the load page says so. What the account refuses (400, 413, 422) is shown in the app with the reason.
 - **Saving:** `base` is what the server has. What is unsaved is always the difference between `base` and the stores, so a retry sends the latest. Saves go out 1 second after an edit, and at least every 5 seconds while typing.
 - **Answers with data:** the app takes the server's version and puts edits made since back on top. An open Undo is dropped, because it would bring back the old state.
 - **Failures:** network and server errors retry with growing delays and show a banner. Invalid data or a full account (400, 413, 422) waits for the next edit.
-- **Session ended:** unsaved changes stay in memory, only for that account, and are saved when the same person signs in again. Closing the tab with unsaved changes asks first.
-- **Signing out** saves first, and asks before dropping anything that could not be saved. The account's data leaves the app and the guest data comes back.
+- **Session ended:** unsaved changes stay on this device, only for that account, and are saved when the same person signs in again, even after a reload. The sign-in page names the account and offers to delete them, for shared computers.
+- **Save status** says where the latest changes are: saved to the account, kept on this device, or only in this tab (the browser refused to store them). Closing the tab only asks first in that last case. Guests are told when the browser refuses to save at all.
+- **Signing out** saves first, and asks before dropping anything that could not be saved. Signing out anyway deletes it from this device too. The account's data leaves the app and the guest data comes back.
 - `tests/sync.test.ts` runs all of this against the real API and database.
 
 ### Importing guest data

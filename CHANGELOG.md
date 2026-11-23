@@ -2,6 +2,23 @@
 
 Patch notes for College Hub. Newest first.
 
+## Unreleased · Changes survive a reload
+
+### New
+
+- **Nothing typed is lost to a reload, a crash or a dropped connection.** While you are signed in, changes that have not reached your account yet are kept on this device and saved the next time you open College Hub, even if you were offline when you reloaded.
+- **Delete from this device.** If someone was signed out before their changes were saved, the sign-in page says whose they are and lets anyone delete them. Useful on shared and lab computers.
+
+### Improved
+
+- **Save status says where your changes are:** saved to your account, kept on this device, or only in this tab. It only asks before you close the page when closing would really lose something.
+- **Guests are warned when the browser will not save**, for example in some private windows, with a button to download a copy.
+- Signing out without saving now says the changes are deleted from this device.
+
+### Privacy
+
+- The Privacy Policy explains that changes not yet saved to your account are kept in the browser until your account has them or you delete them.
+
 ## 2026-11-22 · More protection
 
 ### New
