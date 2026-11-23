@@ -160,6 +160,62 @@ body {
   }
 }
 
+/*
+ * A quiet slider: a thin track that fills with the accent, and a round white thumb.
+ * Set --fill (0% to 100%) inline to match the value.
+ */
+.range {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  --fill: 50%;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--color-accent-fill) var(--fill), var(--color-fill-strong) var(--fill));
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--color-accent-fill) var(--fill), var(--color-fill-strong) var(--fill));
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.2);
+  transition: transform 160ms var(--ease-apple), box-shadow 160ms var(--ease-apple);
+}
+.range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.2);
+  transition: transform 160ms var(--ease-apple), box-shadow 160ms var(--ease-apple);
+}
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.1);
+}
+.range:active::-moz-range-thumb {
+  transform: scale(1.1);
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-fill) 35%, transparent), 0 2px 6px rgb(0 0 0 / 0.2);
+}
+.range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-fill) 35%, transparent), 0 2px 6px rgb(0 0 0 / 0.2);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -167,4 +223,108 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.pomodoro-card { container: pomodoro / inline-size; }
+.pomodoro-layout {
+  display: grid;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.pomodoro-details { min-width: 0; }
+@container pomodoro (min-width: 29rem) {
+  .pomodoro-layout {
+    grid-template-columns: minmax(10rem, .9fr) minmax(14rem, 1fr);
+    gap: clamp(1rem, 4cqi, 3rem);
+    max-width: 42rem;
+    margin-inline: auto;
+  }
+}
+@container pomodoro (max-width: 14rem) {
+  .pomodoro-presets { grid-template-columns: repeat(auto-fit, minmax(min(100%, 4rem), 1fr)); }
+  .pomodoro-presets > span { display: none; }
+  .pomodoro-presets input:checked + span { background: var(--color-thumb); }
+}
+
+.focus-atmosphere {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 100% 90%, color-mix(in srgb, var(--color-accent-fill) 12%, transparent), transparent 60%);
+  mask-image: radial-gradient(ellipse at center, transparent 15%, #000 75%);
+}
+/*
+ * Each phase's tone is a layer of two soft color fields that drift on their own long,
+ * looping paths. Different durations and start points keep them out of step, so the
+ * motion is always slow and never visibly repeats. Phases crossfade between layers.
+ */
+.focus-atmosphere > i {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 2.5s ease-in-out;
+}
+.focus-atmosphere > i::before,
+.focus-atmosphere > i::after {
+  content: '';
+  position: absolute;
+  width: 78vmax;
+  height: 78vmax;
+  border-radius: 50%;
+  will-change: transform;
+}
+.focus-atmosphere > i::before {
+  top: -30vmax;
+  left: -22vmax;
+  background: radial-gradient(circle, var(--wash), transparent var(--spread));
+}
+.focus-atmosphere > i::after {
+  right: -26vmax;
+  bottom: -34vmax;
+  background: radial-gradient(circle, var(--wash-2), transparent var(--spread));
+}
+.focus-atmosphere > :nth-child(1) {
+  --wash: color-mix(in srgb, var(--color-accent-hover) 31%, transparent);
+  --wash-2: color-mix(in srgb, var(--color-accent-fill) 22%, transparent);
+  --spread: 59%;
+}
+.focus-atmosphere > :nth-child(2) {
+  --wash: color-mix(in srgb, var(--color-good) 19%, transparent);
+  --wash-2: color-mix(in srgb, var(--color-good) 13%, transparent);
+  --spread: 65%;
+}
+.focus-atmosphere > :nth-child(3) {
+  --wash: color-mix(in srgb, var(--color-accent-fill) 15%, transparent);
+  --wash-2: color-mix(in srgb, var(--color-accent-hover) 12%, transparent);
+  --spread: 83%;
+}
+.focus-atmosphere[data-tone="focus"] > :nth-child(1),
+.focus-atmosphere[data-tone="short-break"] > :nth-child(2),
+.focus-atmosphere[data-tone="long-break"] > :nth-child(3) { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .focus-atmosphere > i::before { animation: focus-flow-a 47s ease-in-out infinite alternate; }
+  .focus-atmosphere > i::after { animation: focus-flow-b 63s ease-in-out infinite alternate; }
+  /* Out of step with each other, so no two layers move together. */
+  .focus-atmosphere > :nth-child(2)::before { animation-duration: 55s; animation-delay: -19s; }
+  .focus-atmosphere > :nth-child(2)::after { animation-duration: 71s; animation-delay: -33s; }
+  .focus-atmosphere > :nth-child(3)::before { animation-duration: 61s; animation-delay: -41s; }
+  .focus-atmosphere > :nth-child(3)::after { animation-duration: 77s; animation-delay: -12s; }
+  @keyframes focus-flow-a {
+    0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate3d(16vw, 9vh, 0) rotate(18deg) scale(1.12); }
+    50% { transform: translate3d(28vw, 24vh, 0) rotate(-6deg) scale(0.94); }
+    75% { transform: translate3d(9vw, 31vh, 0) rotate(-22deg) scale(1.08); }
+    100% { transform: translate3d(22vw, 14vh, 0) rotate(10deg) scale(1.02); }
+  }
+  @keyframes focus-flow-b {
+    0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1.04); }
+    30% { transform: translate3d(-19vw, -12vh, 0) rotate(-16deg) scale(0.92); }
+    60% { transform: translate3d(-31vw, -27vh, 0) rotate(12deg) scale(1.14); }
+    100% { transform: translate3d(-12vw, -33vh, 0) rotate(-8deg) scale(1); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-atmosphere > i { transition: none; }
 }

@@ -32,12 +32,91 @@ const view = () =>
       <ToastHost />
     </>,
   )
-const row = (name: string) => screen.getByRole('textbox', { name: `Points earned for ${name}` }).closest('li')!
+/** The row's own button. Its name starts with the component's name. */
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const toggle = (name: string) => screen.getByRole('button', { name: new RegExp(`^${escape(name)},`) })
+/** Opens a component for editing, the way a student would, and gives back its row. */
+const open = (name: string) => {
+  if (toggle(name).getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle(name))
+  return toggle(name).closest('li')!
+}
+const row = open
 const current = () => screen.getByRole('region', { name: 'Current grade' })
-const type = (label: string, value: string) => fireEvent.change(screen.getByRole('textbox', { name: label }), { target: { value } })
+const type = (label: string, value: string) => {
+  open(label.replace(/^(Points earned|Total possible|Weight) for /, ''))
+  fireEvent.change(screen.getByRole('textbox', { name: label }), { target: { value } })
+}
 const stored = (id: string) => useGradeStore.getState().components.find((c) => c.id === id)
 
 describe('points-based grade entry', () => {
+  it('shows results first, and opens one component at a time for editing', () => {
+    view()
+    // Nothing to type into until a component is chosen.
+    expect(screen.queryByRole('textbox', { name: /Points earned/ })).not.toBeInTheDocument()
+    const quiz = toggle('Quiz 1')
+    expect(quiz).toHaveAttribute('aria-expanded', 'false')
+    expect(quiz).toHaveAccessibleName('Quiz 1, 42/50, 84%, adds 25.2 of 30 points')
+    expect(quiz).toHaveTextContent('84%')
+    expect(quiz).toHaveTextContent('42/50')
+    expect(quiz).toHaveTextContent('+25.2')
+    expect(toggle('Project')).toHaveAccessibleName('Project, pending, worth 30%')
+    expect(toggle('Project')).toHaveTextContent('Pending')
+
+    fireEvent.click(quiz)
+    expect(toggle('Quiz 1')).toHaveAttribute('aria-expanded', 'true')
+    open('Quiz 1')
+    expect(screen.getByRole('textbox', { name: 'Points earned for Quiz 1' })).toHaveValue('42')
+    // Opening another closes the first.
+    fireEvent.click(toggle('Midterm'))
+    expect(toggle('Quiz 1')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('textbox', { name: 'Points earned for Quiz 1' })).not.toBeInTheDocument()
+    open('Midterm')
+    expect(screen.getByRole('textbox', { name: 'Points earned for Midterm' })).toBeInTheDocument()
+  })
+
+  it('closes with Escape or Done, and puts the keyboard back on the component', () => {
+    view()
+    open('Quiz 1')
+    open('Quiz 1')
+    const earned = screen.getByRole('textbox', { name: 'Points earned for Quiz 1' })
+    earned.focus()
+    fireEvent.keyDown(earned, { key: 'Escape' })
+    expect(toggle('Quiz 1')).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle('Quiz 1')).toHaveFocus()
+    open('Quiz 1')
+    fireEvent.click(within(row('Quiz 1')).getByRole('button', { name: 'Done' }))
+    expect(toggle('Quiz 1')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('opens a new component ready to name', () => {
+    view()
+    fireEvent.click(screen.getByRole('button', { name: 'Add component' }))
+    const name = screen.getByRole('textbox', { name: 'Component name' })
+    expect(name).toHaveValue('')
+    expect(name).toHaveFocus()
+    expect(toggle('Untitled component')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('marks a component that needs a fix in the list, not only in its editor', () => {
+    view()
+    type('Total possible for Quiz 1', '0')
+    fireEvent.click(within(row('Quiz 1')).getByRole('button', { name: 'Done' }))
+    expect(toggle('Quiz 1')).toHaveAccessibleName('Quiz 1, needs a fix, worth 30%')
+    expect(toggle('Quiz 1')).toHaveTextContent('Needs a fix')
+  })
+
+  it('shows standing, what is locked in, and what is still open', () => {
+    view()
+    const card = current()
+    expect(card).toHaveTextContent('Current standing')
+    expect(within(card).getByText('87.4%')).toBeInTheDocument()
+    expect(card).toHaveTextContent('2 of 3 graded')
+    // Pending work is not counted as zero: it stays "Remaining".
+    expect(card).toHaveTextContent('Locked in61.2 of 100')
+    expect(card).toHaveTextContent('Graded70%')
+    expect(card).toHaveTextContent('Remaining30%')
+  })
+
   it('shows each score as entered, what it is worth, and the weighted grade', () => {
     view()
     // 42 out of 50 is 84%, which adds 25.2 points to a component worth 30%.
@@ -47,7 +126,9 @@ describe('points-based grade entry', () => {
     // (25.2 + 36) / 70 graded
     expect(within(current()).getByText('87.4%')).toBeInTheDocument()
     // Total possible stays empty for old entries, showing the default it uses.
+    open('Midterm')
     expect(screen.getByRole('textbox', { name: 'Total possible for Midterm' })).toHaveValue('')
+    open('Midterm')
     expect(screen.getByRole('textbox', { name: 'Total possible for Midterm' })).toHaveAttribute('placeholder', '100')
   })
 
@@ -94,6 +175,7 @@ describe('points-based grade entry', () => {
 
   it('explains a zero or negative total beside the field and leaves it out of the grade', () => {
     view()
+    open('Quiz 1')
     const total = screen.getByRole('textbox', { name: 'Total possible for Quiz 1' })
     for (const bad of ['0', '-5']) {
       fireEvent.change(total, { target: { value: bad } })
@@ -160,8 +242,28 @@ describe('points-based grade entry', () => {
     expect(within(screen.getByRole('region', { name: 'What-if' })).getByText('91.2%')).toBeInTheDocument()
   })
 
+  it('announces the same locked-in, graded and remaining weight that it shows', () => {
+    view()
+    // 25.2 + 36 locked in, 70% graded, 30% still to come.
+    expect(within(current()).getByRole('img')).toHaveAccessibleName('Locked in 61.2 of 100 points, graded 70 percent, remaining 30 percent')
+    expect(current()).toHaveTextContent('Remaining30%')
+  })
+
+  it('announces nothing remaining once everything is graded, even below 100%', () => {
+    useGradeStore.setState({
+      components: [
+        { id: 'a', courseId: 'c1', name: 'Exam A', weight: 50, score: 80 },
+        { id: 'b', courseId: 'c1', name: 'Exam B', weight: 50, score: 40, totalScore: 50 },
+      ],
+    })
+    view()
+    expect(within(current()).getByRole('img')).toHaveAccessibleName('Locked in 80 of 100 points, graded 100 percent, remaining 0 percent')
+    expect(current()).toHaveTextContent('Remaining0%')
+  })
+
   it('lets a box be empty while editing, and tidies it afterwards', () => {
     view()
+    open('Quiz 1')
     const weight = screen.getByRole('textbox', { name: 'Weight for Quiz 1' })
     fireEvent.change(weight, { target: { value: '' } })
     expect(weight).toHaveValue('')
@@ -190,7 +292,7 @@ describe('points-based grade entry', () => {
     expect(useGradeStore.getState().components.map((c) => c.id)).toEqual(['quiz', 'exam', 'proj'])
     expect(stored('quiz')).toEqual({ id: 'quiz', courseId: 'c1', name: 'Quiz 1', weight: 30, score: 42, totalScore: 50 })
     expect(row('Quiz 1')).toHaveTextContent('84% · adds 25.2 of 30 points')
-    expect(within(row('Quiz 1')).getByRole('button', { name: 'Remove Quiz 1' })).toHaveFocus()
+    expect(toggle('Quiz 1')).toHaveFocus()
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 

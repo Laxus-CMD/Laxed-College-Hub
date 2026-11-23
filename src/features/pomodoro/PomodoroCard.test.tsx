@@ -1,12 +1,15 @@
+import { Profiler } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PomodoroCard } from './PomodoroCard'
 import { POMODORO_KEY } from './pomodoroState'
+import { useFocusTask } from './focusTask'
 
 const MIN = 60_000
 
 beforeEach(() => {
   localStorage.removeItem(POMODORO_KEY)
+  useFocusTask.setState({ task: '' })
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
   vi.setSystemTime(new Date('2026-11-23T08:00:00'))
 })
@@ -76,8 +79,17 @@ describe('Pomodoro timer', () => {
     first.unmount()
     render(<PomodoroCard />)
     expect(screen.getByRole('radio', { name: 'Custom' })).toBeChecked()
-    expect(screen.getByRole('slider', { name: 'Focus length' })).toHaveValue('40')
     expect(digits()).toBe('40:00')
+    expect(summary()).toBe('40 min focus · 7 min break')
+    // The lengths stay tucked away until asked for.
+    const adjust = within(card()).getByRole('button', { name: 'Adjust' })
+    expect(adjust).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+    fireEvent.click(adjust)
+    expect(within(card()).getByRole('button', { name: 'Done' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('slider', { name: 'Focus length' })).toHaveValue('40')
+    fireEvent.click(within(card()).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
   })
 
   it('keeps the running interval when settings change, says so, and uses them next', () => {
@@ -140,14 +152,73 @@ describe('Pomodoro timer', () => {
     expect(timer.closest('[aria-live]')).toBeNull()
   })
 
-  it('gives the main buttons a 44 px touch target, with Reset separate and quieter', () => {
+  it('gives the main buttons at least a 44 px touch target, with Reset separate and quieter', () => {
     render(<PomodoroCard />)
     const start = within(card()).getByRole('button', { name: 'Start' })
     const reset = within(card()).getByRole('button', { name: 'Reset' })
-    expect(start).toHaveClass('h-11')
-    expect(reset).toHaveClass('h-11')
-    expect(start.className).toMatch(/bg-accent-fill/)
-    expect(reset.className).not.toMatch(/bg-accent-fill/)
+    expect(start).toHaveClass('h-12')
+    expect(reset).toHaveClass('size-11')
+    expect(start).toHaveClass('bg-accent-fill')
+    expect(start).not.toHaveAttribute('style')
+    expect(start.className).not.toMatch(/shadow|gradient|glow/)
+    expect(reset.className).toMatch(/bg-fill/)
+  })
+
+  it('counts finished focus sessions for today, including one that ended in the background', () => {
+    render(<PomodoroCard />)
+    const dots = () => within(card()).getByRole('img').getAttribute('aria-label')
+    expect(dots()).toBe('0 focus sessions finished today')
+    press('Start')
+    vi.setSystemTime(Date.now() + 30 * MIN)
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
+    expect(dots()).toBe('1 focus session finished today')
+    // A break does not count. The next focus does.
+    press('Start')
+    wait(5 * MIN)
+    expect(dots()).toBe('1 focus session finished today')
+    press('Start')
+    wait(25 * MIN)
+    expect(dots()).toBe('2 focus sessions finished today')
+    expect(within(card()).getByText('2 today')).toBeInTheDocument()
+  })
+
+  it('keeps today\'s count after a reload, and starts again the next day', () => {
+    const first = render(<PomodoroCard />)
+    press('Start')
+    wait(25 * MIN)
+    press('Start') // Saves the finished focus session along with the break.
+    first.unmount()
+    const again = render(<PomodoroCard />)
+    expect(within(card()).getByRole('img')).toHaveAttribute('aria-label', '1 focus session finished today')
+    again.unmount()
+    vi.setSystemTime(new Date('2026-11-24T08:00:00'))
+    render(<PomodoroCard />)
+    expect(within(card()).getByRole('img')).toHaveAttribute('aria-label', '0 focus sessions finished today')
+  })
+
+  it('slows its refresh once a phase has ended, keeping the announcement and counting the session once', () => {
+    let commits = 0
+    render(
+      <Profiler id="pomodoro" onRender={() => (commits += 1)}>
+        <PomodoroCard />
+      </Profiler>,
+    )
+    press('Start')
+    wait(25 * MIN + 1_000)
+    expect(live()).toBe('Focus complete. Time for a break.')
+    const dots = () => within(card()).getByRole('img').getAttribute('aria-label')
+    expect(dots()).toBe('1 focus session finished today')
+    // Nothing is running: at most one more render in two seconds, not eight.
+    // One step at a time, as a browser would deliver ticks, so React cannot batch them into one render.
+    const before = commits
+    for (let i = 0; i < 8; i++) wait(250)
+    expect(commits - before).toBeLessThanOrEqual(1)
+    expect(live()).toBe('Focus complete. Time for a break.')
+    wait(60_000)
+    expect(dots()).toBe('1 focus session finished today')
+    // Starting the break saves that session, still once.
+    press('Start')
+    expect(dots()).toBe('1 focus session finished today')
   })
 
   it('starts fresh from a timer saved by an older version', () => {
@@ -155,5 +226,59 @@ describe('Pomodoro timer', () => {
     render(<PomodoroCard />)
     expect(digits()).toBe('25:00')
     expect(screen.getByRole('radio', { name: '25/5' })).toBeChecked()
+  })
+})
+
+describe('Focus Space', () => {
+  it('shares the deadline and paused time across layouts and leaves typing alone', () => {
+    render(<PomodoroCard />)
+    press('Start')
+    wait(MIN)
+    fireEvent.keyDown(document.body, { key: 'f' })
+    const space = within(screen.getByRole('dialog', { name: 'Focus Space' }))
+    expect(space.getByRole('timer')).toHaveTextContent('24:00')
+    wait(MIN)
+    const task = space.getByRole('textbox', { name: 'Current task' })
+    fireEvent.change(task, { target: { value: 'Read chapter 3' } })
+    fireEvent.keyDown(task, { key: 'f' })
+    fireEvent.keyDown(task, { key: ' ' })
+    expect(space.getByRole('button', { name: 'Pause' })).toBeEnabled()
+    fireEvent.keyDown(space.getByRole('heading'), { key: ' ' })
+    wait(MIN)
+    expect(space.getByRole('timer')).toHaveTextContent('23:00')
+    fireEvent.keyDown(space.getByRole('heading'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(within(card()).getByRole('timer')).toHaveTextContent('23:00')
+    press('Enter Focus Space')
+    expect(screen.getByRole('textbox')).toHaveValue('Read chapter 3')
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Resume' }))
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'f' })
+    wait(MIN)
+    expect(digits()).toBe('22:00')
+  })
+
+  it('keeps the viewport fallback when the browser declines and follows native exit', async () => {
+    const request = vi.fn().mockRejectedValue(new Error('Fullscreen denied'))
+    Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', { configurable: true, value: request })
+    try {
+      render(<PomodoroCard />)
+      press('Enter Focus Space')
+      expect(request).toHaveBeenCalledTimes(1)
+      const panel = screen.getByRole('dialog')
+      await act(async () => {})
+      expect(panel).toBeInTheDocument()
+      fireEvent.click(within(panel).getByRole('button', { name: 'Exit Focus Space' }))
+      request.mockResolvedValue(undefined)
+      press('Enter Focus Space')
+      Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: screen.getByRole('dialog') })
+      fireEvent(document, new Event('fullscreenchange'))
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      Reflect.deleteProperty(document, 'fullscreenElement')
+      fireEvent(document, new Event('fullscreenchange'))
+      expect(screen.queryByRole('dialog')).toBeNull()
+    } finally {
+      Reflect.deleteProperty(document, 'fullscreenElement')
+      Reflect.deleteProperty(HTMLElement.prototype, 'requestFullscreen')
+    }
   })
 })

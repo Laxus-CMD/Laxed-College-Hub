@@ -1,4 +1,5 @@
 import { readDevice } from '@/lib/storage'
+import { dateKey } from '@/lib/time'
 
 /**
  * The Pomodoro timer's settings and state, as plain data and pure functions.
@@ -39,6 +40,8 @@ export interface Settings {
 export interface Saved extends Settings {
   v: 2
   timer: Timer
+  /** Focus intervals finished on a given day. Optional, so timers saved before it existed still load. */
+  done?: { day: string; count: number }
 }
 
 export function minutes(s: Settings, phase: Phase): number {
@@ -77,7 +80,9 @@ export function readSaved(): Saved {
       t.remainingMs <= t.durationMs &&
       (t.endsAt === null || (finite(t.endsAt) && t.endsAt > 0))
     ) {
-      return { v: 2, preset: s.preset!, custom: { focus: s.custom!.focus, break: s.custom!.break }, timer: { ...t } }
+      const d = s.done
+      const done = d && typeof d.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.day) && Number.isInteger(d.count) && d.count >= 0 && d.count < 1000 ? { day: d.day, count: d.count } : undefined
+      return { v: 2, preset: s.preset!, custom: { focus: s.custom!.focus, break: s.custom!.break }, timer: { ...t }, ...(done ? { done } : {}) }
     }
   } catch {
     // Unreadable: start fresh.
@@ -96,7 +101,18 @@ export function at(saved: Saved, now: number): { saved: Saved; remainingMs: numb
   const remainingMs = Math.max(0, Math.min(t.remainingMs, t.endsAt - now))
   if (remainingMs > 0) return { saved, remainingMs, completed: null }
   const next = fresh(saved, t.phase === 'focus' ? 'break' : 'focus')
-  return { saved: { ...saved, timer: next }, remainingMs: next.remainingMs, completed: t.phase }
+  // A finished focus interval counts toward the day it ended on, even if nobody was looking.
+  const done = t.phase === 'focus' ? countOn(saved, dateKey(new Date(t.endsAt))) : saved.done
+  return { saved: { ...saved, timer: next, ...(done ? { done } : {}) }, remainingMs: next.remainingMs, completed: t.phase }
+}
+
+function countOn(saved: Saved, day: string): { day: string; count: number } {
+  return { day, count: (saved.done?.day === day ? saved.done.count : 0) + 1 }
+}
+
+/** Focus intervals finished today. */
+export function finishedToday(saved: Saved, now: number): number {
+  return saved.done?.day === dateKey(new Date(now)) ? saved.done.count : 0
 }
 
 /** Start, pause or resume, at `time`. Pausing keeps the exact time left. */
