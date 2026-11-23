@@ -9,7 +9,7 @@ import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
 import { apply, cleanDoc, diff, docsEqual, isEmpty, KINDS, readStores, writeStores, type Changes, type Doc, type DocProfile, type Kind } from '@/sync/doc'
-import { dropAllPending, dropPending, hasMemoryOnly, listPending, savePending, type Pending } from '@/sync/pending'
+import { dropAllPending, dropPending, dropPendingIfSame, hasMemoryOnly, listPending, savePending, type Pending } from '@/sync/pending'
 import { CLOSED, useSyncStore, type LocalCopy } from '@/sync/useSyncStore'
 
 /**
@@ -232,11 +232,15 @@ export class SyncEngine {
       this.open_ = open
       this.lastChecked = Date.now()
       // What the account cannot take stays on screen, so the student can see it and fix it.
-      this.fillStores(refused.reduce((doc, p) => apply(doc, p.changes), open.base))
+      this.fillStores(refused.reduce((doc, r) => apply(doc, r.changes), open.base))
       useSyncStore.setState({ phase: 'ready' })
       // Written down under this tab before the old entries go, so a crash in between loses nothing.
       this.settled()
-      for (const p of refused) if (p.clientId !== this.clientId) dropPending(p.accountId, p.clientId)
+      // Only once that copy is really on the device. If the browser refused it, the old entries
+      // are the only copy that survives a reload, so they stay.
+      if (useSyncStore.getState().local !== 'memory') {
+        for (const { entry } of refused) if (entry.clientId !== this.clientId) dropPendingIfSame(entry)
+      }
       if (refused.length) void this.save()
       if (res.revision === 0) useSettingsStore.getState().setName(account.name.split(' ')[0]!.slice(0, 30))
       if (saved) useUiStore.getState().showToast({ message: 'Changes from your last visit were saved to your account.' })
@@ -253,15 +257,17 @@ export class SyncEngine {
    * that made it. Entries from tabs that are still open are left to them.
    * Throws when the server cannot be reached, and then every entry stays for next time.
    */
-  private async recover(open: Open, epoch: number): Promise<{ saved: number; refused: Pending[] }> {
+  private async recover(open: Open, epoch: number): Promise<{ saved: number; refused: { entry: Pending; changes: Changes }[] }> {
     const live = await liveTabs()
     let saved = 0
-    const refused: Pending[] = []
+    const refused: { entry: Pending; changes: Changes }[] = []
     for (const p of listPending(open.account.id)) {
       if (p.clientId !== this.clientId && live.has(p.clientId)) continue
       const changes = notYetApplied(p.changes, open.base)
+      // From here on, only this exact entry may be deleted. Anything written under the same key
+      // while a request is out, for example by the tab that made it, is newer and stays.
       if (isEmpty(changes)) {
-        dropPending(p.accountId, p.clientId)
+        dropPendingIfSame(p)
         continue
       }
       try {
@@ -270,11 +276,11 @@ export class SyncEngine {
         if (epoch !== this.epoch) return { saved, refused }
         open.base = res.data ? this.fromServer(res.data) : apply(open.base, changes)
         open.revision = res.revision
-        dropPending(p.accountId, p.clientId)
+        dropPendingIfSame(p)
         saved++
       } catch (err) {
         // Sending it again would not help. Show it instead, so the student can make room or fix it.
-        if (isStatus(err, 400, 413, 422)) refused.push({ ...p, changes })
+        if (isStatus(err, 400, 413, 422)) refused.push({ entry: p, changes })
         else throw err
       }
     }

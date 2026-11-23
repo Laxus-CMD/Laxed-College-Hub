@@ -78,7 +78,14 @@ function parse(text: string | null): Pending | null {
   return ok ? (p as Pending) : null
 }
 
-/** Keeps the latest unconfirmed changes for one tab. Says whether they will survive a reload. */
+/**
+ * Keeps the latest unconfirmed changes for one tab. Says whether they will survive a reload.
+ *
+ * When the browser refuses, the newer changes live in this tab's memory, and the last copy
+ * the browser did accept stays on the device. After a reload that older copy is all there
+ * is, and losing it would lose those changes too. Once the newer changes are confirmed,
+ * `dropPending` or `dropPendingIfSame` removes both.
+ */
 export function savePending(p: Omit<Pending, 'v' | 'savedAt'>): Where {
   const key = keyFor(p.accountId, p.clientId)
   const entry: Pending = { v: 1, ...p, savedAt: new Date().toISOString() }
@@ -88,14 +95,31 @@ export function savePending(p: Omit<Pending, 'v' | 'savedAt'>): Where {
     return 'device'
   } catch {
     memory.set(key, entry)
-    // An older copy on the device would undo these changes if it were sent after a reload.
-    try {
-      localStorage.removeItem(key)
-    } catch {
-      /* Storage is off entirely, so nothing older can be read back either. */
-    }
     return 'memory'
   }
+}
+
+/**
+ * Deletes an entry only if it is still exactly the one given. Changes written under the
+ * same key meanwhile, for example by the tab that made them, are newer and stay.
+ */
+export function dropPendingIfSame(p: Pending): void {
+  const key = keyFor(p.accountId, p.clientId)
+  const sent = JSON.stringify(p)
+  const inMemory = memory.get(key)
+  if (inMemory) {
+    // The memory copy is the newest. If it is the one confirmed, the older device copy is covered too.
+    if (JSON.stringify(inMemory) === sent) dropPending(p.accountId, p.clientId)
+    return
+  }
+  let text: string | null = null
+  try {
+    text = localStorage.getItem(key)
+  } catch {
+    return
+  }
+  const now = parse(text)
+  if (now && JSON.stringify(now) === sent) dropPending(p.accountId, p.clientId)
 }
 
 export function dropPending(accountId: string, clientId: string): void {

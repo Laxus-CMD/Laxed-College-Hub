@@ -893,7 +893,15 @@ describe('after a reload or crash', () => {
     expect(listPending()).toEqual([])
   })
 
-  it('says so when the browser will not keep a copy, and never sends an older copy later', async () => {
+  /** The raw drafts in localStorage, unescaped, so a title can be matched with its quotes. */
+  const draftsOnDevice = () =>
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('college-hub.pending.'))
+      .map((k) => localStorage.getItem(k))
+      .join(' ')
+
+  /** Offline, a task written down on the device, then renamed while the browser refuses to store more. */
+  async function renamedWhileStorageRefuses() {
     const a = await signUp()
     const e = await openApp(a)
     await e.flush()
@@ -908,14 +916,34 @@ describe('after a reload or crash', () => {
     e.keepNow()
     expect(useSyncStore.getState().local).toBe('memory')
     expect(e.hasUnsaved()).toBe(true)
-    // The older copy on the device is gone, so a reload cannot undo the rename.
-    expect(JSON.stringify({ ...localStorage })).not.toMatch(/"first"/)
+    return { a, e, refuse }
+  }
+
+  it('says so when the browser will not keep a copy, and keeps the last copy it did', async () => {
+    const { a, e, refuse } = await renamedWhileStorageRefuses()
+    // The rename is only in this tab, but the task itself is still on the device.
+    expect(draftsOnDevice()).toMatch(/"first"/)
     refuse.mockRestore()
     resetPendingMemory()
     crash(e)
     network = null
     await openApp(a)
-    expect(await serverTitles()).toEqual([])
+    // The rename was lost with the tab, as the status warned. The task was not.
+    expect(await serverTitles()).toEqual(['first'])
+    expect(listPending()).toEqual([])
+  })
+
+  it('never sends that older copy once the newer changes are saved', async () => {
+    const { a, e, refuse } = await renamedWhileStorageRefuses()
+    network = null
+    // Still refusing to store, but the connection is back and the rename reaches the account.
+    expect(await e.flush()).toBe(true)
+    expect(draftsOnDevice()).not.toMatch(/"first"/)
+    expect(listPending()).toEqual([])
+    refuse.mockRestore()
+    crash(e)
+    await openApp(a)
+    expect(await serverTitles()).toEqual(['renamed'])
   })
 
   it('leaves changes from a tab that is still open to that tab', async () => {
@@ -951,5 +979,72 @@ describe('after a reload or crash', () => {
     e.discard()
     expect(listPending()).toEqual([])
     expect(JSON.stringify({ ...localStorage })).not.toMatch(/dropped on purpose/)
+  })
+})
+
+describe('recovery never deletes the last kept copy', () => {
+  const NONE = { courses: [], sessions: [], tasks: [], notes: [], components: [] }
+  const keptTask = (a: Account, clientId: string, title: string, revision = 0) =>
+    savePending({
+      accountId: a.id,
+      email: a.email,
+      clientId,
+      revision,
+      changes: { upsert: { ...NONE, tasks: [{ id: 't-kept', kind: 'todo', title, done: false, source: 'manual' } as any] }, remove: { ...NONE } },
+    })
+  const keptTitles = (a: Account) => listPending(a.id).flatMap((p) => p.changes.upsert.tasks.map((t) => t.title))
+
+  it('keeps the original draft when the account refuses it and the browser will not store the replacement', async () => {
+    const a = await signUp()
+    keptTask(a, 'tab-gone', 'refused by the account')
+    // The account refuses the recovered save.
+    network = (method, path) =>
+      method === 'POST' && path.endsWith('/data/sync')
+        ? new Response(JSON.stringify({ error: 'Your account is full.' }), { status: 422, headers: { 'Content-Type': 'application/json' } })
+        : undefined
+    // And the browser refuses to store the copy written under the new tab.
+    const refuse = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    try {
+      const e = await openApp(a)
+      expect(titles()).toEqual(['refused by the account'])
+      await vi.waitFor(() => expect(useSyncStore.getState()).toMatchObject({ status: 'blocked', local: 'memory' }))
+      e.stop()
+    } finally {
+      refuse.mockRestore()
+    }
+    network = null
+    // A fresh page: this tab's memory is gone.
+    resetPendingMemory()
+    expect(keptTitles(a)).toEqual(['refused by the account'])
+  })
+
+  it('keeps a newer draft the original tab writes while its older one is being recovered', async () => {
+    const a = await signUp()
+    keptTask(a, 'tab-other', 'older')
+    let release = () => {}
+    const held = new Promise<void>((r) => (release = r))
+    afterServer = (method, path) => {
+      if (method !== 'POST' || !path.endsWith('/data/sync')) return
+      afterServer = null
+      return held
+    }
+    const opening = openApp(a)
+    // The server has stored the older draft, and its answer is on hold.
+    await vi.waitFor(async () => expect((await stored()).tasks.map((t: any) => t.title)).toEqual(['older']))
+    // Meanwhile the tab that made it writes something newer.
+    keptTask(a, 'tab-other', 'newer')
+    release()
+    const first = await opening
+    expect(keptTitles(a)).toEqual(['newer'])
+
+    // And the newer one is saved the next time the account opens, on a fresh page.
+    first.stop()
+    useSyncStore.setState(CLOSED)
+    resetPendingMemory()
+    await openApp(a)
+    expect((await stored()).tasks.map((t: any) => t.title)).toEqual(['newer'])
+    expect(listPending()).toEqual([])
   })
 })

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Changes } from '@/sync/doc'
-import { dropAllPending, dropPending, hasMemoryOnly, listPending, resetPendingMemory, savePending } from '@/sync/pending'
+import { dropAllPending, dropPending, dropPendingIfSame, hasMemoryOnly, listPending, resetPendingMemory, savePending } from '@/sync/pending'
 
 const NONE = { courses: [], sessions: [], tasks: [], notes: [], components: [] }
 const task = (title: string): Changes => ({
@@ -66,19 +66,53 @@ describe('pending changes', () => {
     expect(listPending()).toEqual([])
   })
 
-  it('falls back to this tab\'s memory when the browser refuses, and removes the older copy', () => {
+  it('falls back to this tab\'s memory when the browser refuses, and keeps the last copy it accepted', () => {
     savePending(entry('acc-a', 'tab-1', 'older'))
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('full', 'QuotaExceededError')
     })
     expect(savePending(entry('acc-a', 'tab-1', 'newer'))).toBe('memory')
     expect(hasMemoryOnly()).toBe(true)
-    expect(localStorage.getItem('college-hub.pending.acc-a.tab-1')).toBeNull()
+    // This page sees the newer changes. A fresh page still finds the older ones.
     expect(listPending('acc-a').map((p) => p.changes.upsert.tasks[0]!.title)).toEqual(['newer'])
-    vi.restoreAllMocks()
-    // Once the browser takes it again, it moves back to the device.
+    expect(localStorage.getItem('college-hub.pending.acc-a.tab-1')).toMatch(/"older"/)
+    resetPendingMemory()
+    expect(listPending('acc-a').map((p) => p.changes.upsert.tasks[0]!.title)).toEqual(['older'])
+  })
+
+  it('moves back to the device once the browser takes it again', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    expect(savePending(entry('acc-a', 'tab-1', 'newer'))).toBe('memory')
     expect(savePending(entry('acc-a', 'tab-1', 'newest'))).toBe('device')
     expect(hasMemoryOnly()).toBe(false)
+    expect(listPending('acc-a').map((p) => p.changes.upsert.tasks[0]!.title)).toEqual(['newest'])
+  })
+
+  it('deletes an entry only if it is still the one that was sent', () => {
+    savePending(entry('acc-a', 'tab-1', 'sent'))
+    const sent = listPending('acc-a')[0]!
+    savePending(entry('acc-a', 'tab-1', 'written meanwhile'))
+    dropPendingIfSame(sent)
+    expect(listPending('acc-a').map((p) => p.changes.upsert.tasks[0]!.title)).toEqual(['written meanwhile'])
+    dropPendingIfSame(listPending('acc-a')[0]!)
+    expect(listPending()).toEqual([])
+  })
+
+  it('removes the older device copy too once the newer copy in memory is confirmed', () => {
+    savePending(entry('acc-a', 'tab-1', 'older'))
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    savePending(entry('acc-a', 'tab-1', 'newer'))
+    const confirmed = listPending('acc-a')[0]!
+    // A different entry than the newest one changes nothing.
+    dropPendingIfSame({ ...confirmed, changes: task('older') })
+    expect(listPending('acc-a')).toHaveLength(1)
+    dropPendingIfSame(confirmed)
+    expect(listPending()).toEqual([])
+    expect(localStorage.getItem('college-hub.pending.acc-a.tab-1')).toBeNull()
   })
 
   it('does not touch the guest data or other College Hub keys', () => {
