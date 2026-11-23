@@ -2,7 +2,7 @@
 
 Patch notes for College Hub. Newest first.
 
-## Unreleased · Changes survive a reload
+## 1.6.0 · 2026-11-23 · Changes survive a reload
 
 ### New
 
