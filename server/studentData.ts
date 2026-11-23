@@ -74,6 +74,7 @@ const TABLES: Record<Kind, { table: string; columns: readonly Column[] }> = {
       ['name', 'name', 'text'],
       ['weight', 'weight', 'double precision'],
       ['score', 'score', 'double precision'],
+      ['totalScore', 'total_score', 'double precision'],
     ],
   },
 }

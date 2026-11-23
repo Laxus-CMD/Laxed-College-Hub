@@ -1,4 +1,5 @@
 import { makeDemoData } from '@/data/demo'
+import type { GradeComponent } from '@/types'
 import { useGradeStore } from '@/store/useGradeStore'
 import { useNoteStore } from '@/store/useNoteStore'
 import { useScheduleStore } from '@/store/useScheduleStore'
@@ -48,6 +49,32 @@ export function restoreSnapshot(snap: Snapshot): void {
 /** Shows a toast with an Undo button that puts everything back as it was. */
 export function toastWithUndo(message: string, before: Snapshot): void {
   useUiStore.getState().showToast({ message, undo: () => restoreSnapshot(before) })
+}
+
+/** A grade component that was just removed, with where it was, so Undo can put it back exactly. */
+export interface RemovedComponent {
+  component: GradeComponent
+  index: number
+}
+
+/** Removes one grade component and hands back everything needed to undo it. */
+export function deleteComponent(id: string): RemovedComponent | null {
+  const { components } = useGradeStore.getState()
+  const index = components.findIndex((c) => c.id === id)
+  const component = components[index]
+  if (!component) return null
+  useGradeStore.getState().removeComponent(id)
+  return { component, index }
+}
+
+/** Puts a removed component back in its place, with its score, total and weight, without touching anything edited since. */
+export function restoreComponent({ component, index }: RemovedComponent): void {
+  useGradeStore.setState((s) => {
+    if (s.components.some((c) => c.id === component.id)) return s
+    const next = [...s.components]
+    next.splice(Math.min(index, next.length), 0, component)
+    return { components: next }
+  })
 }
 
 export function deleteCourse(courseId: string): void {

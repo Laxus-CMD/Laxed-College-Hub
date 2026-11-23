@@ -2,6 +2,27 @@
 
 Patch notes for College Hub. Newest first.
 
+## 1.7.0 · 2026-11-23 · Pomodoro timer and points-based grades
+
+### New
+
+- **Pomodoro timer** on Overview. Start a 25-minute focus session in one tap. The big countdown and a quiet ring show the time left, and the label always says **Focus** or **Break**, so color is never the only cue. One button goes from Start to Pause to Resume, and Reset sits apart from it.
+- **Choose your rhythm:** 25/5, 50/10 or Custom, with a summary like "25 min focus · 5 min break". Custom shows two sliders, one for focus and one for break. Your choice is remembered in this browser.
+- **Enter scores the way you get them back**, like 42 out of 50. Each component has Points earned and Total possible side by side, with Weight apart, and shows what it is worth as you type: 42/50 is 84% and adds 25.2 points to a component worth 30%.
+
+### Improved
+
+- **Timer that keeps time:** the ring and the digits come from the same clock, pause together, and are still right when you come back from another tab. New lengths during a session wait for the next interval, and the card says so. When focus ends, the break is ready to start and screen readers hear about it once, not every second.
+- **Clear rules for scores:** total possible is 100 unless you change it, so percentages you already entered mean the same. An empty score is not graded yet, and a 0 counts. A total of 0 or less is explained next to the box and left out of your grade until it is fixed. Boxes can be empty while you type.
+- **Grades page:** your current grade comes first on a phone and stays in view on a wide screen. What-if and the grading scale are quieter.
+- **Remove a component, then Undo in its place:** one tap brings back its score, total and weight, and keyboard focus goes straight to Undo.
+- Buttons and boxes in both features are at least 44 pixels tall, and both work fully with a keyboard.
+
+### Under the hood
+
+- Database migration `005_grade_component_total.sql` adds `grade_components.total_score` (empty means 100, and the database refuses 0 or less). It runs during the production build.
+- The timer is kept in this browser only (`college-hub.pomodoro`). A timer saved by an earlier version starts fresh.
+
 ## 1.6.0 · 2026-11-23 · Changes survive a reload
 
 ### New

@@ -131,6 +131,7 @@ const CLEAN: { [K in Kind]: (r: Doc[K][number]) => Doc[K][number] } = {
     name: text(c.name, 300),
     weight: num(c.weight),
     score: numOrNull(c.score),
+    ...(c.totalScore && c.totalScore > 0 ? { totalScore: optNum(c.totalScore) } : {}),
   }),
 }
 

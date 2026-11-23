@@ -92,6 +92,7 @@ const component = z.object({
   name: text(300),
   weight: number,
   score: maybe(number),
+  totalScore: maybe(number.positive()),
 })
 
 /** Keeps the last of any records with the same id. */

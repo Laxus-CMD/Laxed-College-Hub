@@ -1,8 +1,8 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, Ref } from 'react'
 import { cn } from '@/lib/cn'
 
 type Variant = 'primary' | 'ghost' | 'danger' | 'destructive' | 'subtle'
-type Size = 'md' | 'sm'
+type Size = 'lg' | 'md' | 'sm'
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-accent-fill text-on-accent hover:bg-accent-hover',
@@ -14,11 +14,14 @@ const VARIANTS: Record<Variant, string> = {
 }
 
 const SIZES: Record<Size, string> = {
+  /** 44 px tall: the one main action on a screen, easy to reach on a phone. */
+  lg: 'h-11 px-6 text-[15px]',
   md: 'h-9 px-4 text-sm',
   sm: 'h-8 px-3 text-[13px]',
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>
   variant?: Variant
   size?: Size
 }

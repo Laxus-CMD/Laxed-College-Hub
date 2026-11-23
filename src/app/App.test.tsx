@@ -315,7 +315,7 @@ describe('Grades', () => {
     expect(within(current).getByText('80.8%')).toBeInTheDocument()
     expect(within(current).getByRole('status')).toHaveTextContent(/average of 83\.2% on the remaining 50%/)
 
-    const exam2 = screen.getByLabelText('Score for Long exam 2')
+    const exam2 = screen.getByLabelText('Points earned for Long exam 2')
     await u.type(exam2, '90')
     expect(within(current).getByText(/84\.[23]%/)).toBeInTheDocument()
   })

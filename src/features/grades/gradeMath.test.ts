@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  DEFAULT_SCALE,
-  neededAverage,
-  percentToGrade,
-  projectCgpa,
-  projectFinal,
-  requiredTermGpa,
-  summarize,
-  termGpa,
-} from './gradeMath'
+import { DEFAULT_SCALE, neededAverage, percentToGrade, projectCgpa, projectFinal, requiredTermGpa, summarize, termGpa, scorePercent, totalProblem } from './gradeMath'
 
 const comps = [
   { id: 'a', weight: 20, score: 88 },
@@ -18,6 +9,39 @@ const comps = [
 ]
 
 describe('summarize', () => {
+  it('turns 42 out of 50 into 84%, worth 25.2 points at 30% weight', () => {
+    const quiz = { id: 'q', weight: 30, score: 42, totalScore: 50 }
+    expect(scorePercent(quiz)).toBe(84)
+    expect(summarize([quiz]).earnedPoints).toBeCloseTo(25.2, 10)
+  })
+
+  it('reads a score without a total as a percentage, a blank as ungraded and a zero as graded', () => {
+    expect(scorePercent({ id: 'a', weight: 10, score: 90 })).toBe(90)
+    expect(scorePercent({ id: 'b', weight: 10, score: null, totalScore: 40 })).toBeNull()
+    expect(scorePercent({ id: 'c', weight: 10, score: 0, totalScore: 40 })).toBe(0)
+    expect(summarize([{ id: 'c', weight: 10, score: 0, totalScore: 40 }])).toMatchObject({ gradedWeight: 10, average: 0 })
+  })
+
+  it('never calculates with a total of zero or less', () => {
+    expect(totalProblem(undefined)).toBeNull()
+    expect(totalProblem(0.5)).toBeNull()
+    expect(totalProblem(0)).toBe('Total possible must be more than 0.')
+    expect(totalProblem(-10)).toBe('Total possible must be more than 0.')
+    expect(scorePercent({ id: 'x', weight: 30, score: 42, totalScore: 0 })).toBeNull()
+    expect(summarize([{ id: 'x', weight: 30, score: 42, totalScore: -5 }])).toMatchObject({ gradedWeight: 0, average: null })
+  })
+
+  it('weights raw points alongside percentage entries', () => {
+    const rows = [
+      { id: 'quiz', weight: 50, score: 160, totalScore: 200 },
+      { id: 'exam', weight: 30, score: 100 },
+      { id: 'final', weight: 20, score: null, totalScore: 40 },
+    ]
+    expect(summarize(rows).average).toBe(87.5)
+    expect(projectFinal(rows, { final: 50 })).toBe(80)
+    expect(neededAverage(rows, 80)).toMatchObject({ status: 'needs', average: 50 })
+  })
+
   it('banks points on graded work only', () => {
     const s = summarize(comps)
     expect(s.totalWeight).toBe(100)

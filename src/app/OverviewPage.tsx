@@ -8,6 +8,7 @@ import { GpaCard } from '@/features/grades/GpaCard'
 import { HeroBanner } from '@/features/hero/HeroBanner'
 import { getHeroState } from '@/features/hero/heroState'
 import { RecentNotesCard } from '@/features/notes/RecentNotesCard'
+import { PomodoroCard } from '@/features/pomodoro/PomodoroCard'
 import { TodayCard } from '@/features/schedule/TodayCard'
 import { clearAllData } from '@/store/actions'
 import { useScheduleStore } from '@/store/useScheduleStore'
@@ -62,6 +63,7 @@ export default function OverviewPage() {
           <WeekLoadCard now={now} />
         </div>
         <div className="grid min-w-0 items-start gap-5 max-xl:grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] xl:flex xl:flex-col xl:items-stretch xl:gap-6">
+          <PomodoroCard />
           <TodayCard now={now} />
           <GpaCard />
           <RecentNotesCard />

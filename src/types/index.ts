@@ -81,7 +81,8 @@ export interface GradeComponent {
   courseId: string
   name: string
   weight: number // percent of the course grade
-  score: number | null // percent, null until graded
+  score: number | null // points earned, null until graded
+  totalScore?: number // defaults to 100
 }
 
 /** Minimum percent needed to earn a grade point. */

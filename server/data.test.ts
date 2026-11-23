@@ -490,3 +490,47 @@ describe('limits', () => {
     await new Promise((r) => broken.close(r))
   })
 })
+
+describe('points-based grades', () => {
+  it('stores total possible with a component, and leaves older percentage entries alone', async () => {
+    const s = await student()
+    await s.save({
+      upsert: {
+        courses: [course('c1')],
+        components: [component('quiz', 'c1', { score: 42, totalScore: 50 }), component('exam', 'c1', { score: 90 })],
+      },
+    })
+    const data = await s.load()
+    expect(data.components).toEqual([component('quiz', 'c1', { score: 42, totalScore: 50 }), component('exam', 'c1', { score: 90 })])
+    expect(data.components[1]).not.toHaveProperty('totalScore')
+  })
+
+  it('goes back to the default of 100 when the total is cleared', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')], components: [component('quiz', 'c1', { score: 42, totalScore: 50 })] } })
+    await s.save({ upsert: { components: [component('quiz', 'c1', { score: 42 })] } })
+    expect((await s.load()).components).toEqual([component('quiz', 'c1', { score: 42 })])
+  })
+
+  it('refuses a total of zero or less, and saves nothing', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')] } })
+    for (const totalScore of [0, -5]) {
+      const res = await s.send({ upsert: { components: [component('quiz', 'c1', { score: 4, totalScore })] } })
+      expect(res.status).toBe(400)
+    }
+    expect((await s.load()).components).toEqual([])
+  })
+
+  it('has the column from migration 005, and the database itself refuses a bad total', async () => {
+    const { rows } = await db.query<{ name: string }>("SELECT name FROM schema_migrations WHERE name = '005_grade_component_total.sql'")
+    expect(rows).toHaveLength(1)
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')] } })
+    await expect(
+      db.query("INSERT INTO grade_components (user_id, id, course_id, name, weight, score, total_score, bytes) VALUES ($1, 'g', 'c1', 'x', 10, 1, 0, 1)", [
+        s.accountId,
+      ]),
+    ).rejects.toThrow(/check/i)
+  })
+})
