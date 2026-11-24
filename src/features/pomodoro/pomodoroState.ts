@@ -30,6 +30,11 @@ export interface Timer {
   remainingMs: number
   /** When it reaches zero while running, or null while stopped. */
   endsAt: number | null
+  /**
+   * Who started or last resumed it: an account id or "guest". The finished session is
+   * theirs, even if someone else is signed in when it ends. Missing on older timers.
+   */
+  by?: string
 }
 
 export interface Settings {
@@ -82,7 +87,9 @@ export function readSaved(): Saved {
     ) {
       const d = s.done
       const done = d && typeof d.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.day) && Number.isInteger(d.count) && d.count >= 0 && d.count < 1000 ? { day: d.day, count: d.count } : undefined
-      return { v: 2, preset: s.preset!, custom: { focus: s.custom!.focus, break: s.custom!.break }, timer: { ...t }, ...(done ? { done } : {}) }
+      const by = typeof t.by === 'string' && t.by.length > 0 && t.by.length <= 64 ? t.by : undefined
+      const timer: Timer = { phase: t.phase, durationMs: t.durationMs, remainingMs: t.remainingMs, endsAt: t.endsAt, ...(by ? { by } : {}) }
+      return { v: 2, preset: s.preset!, custom: { focus: s.custom!.focus, break: s.custom!.break }, timer, ...(done ? { done } : {}) }
     }
   } catch {
     // Unreadable: start fresh.
@@ -115,9 +122,32 @@ export function finishedToday(saved: Saved, now: number): number {
   return saved.done?.day === dateKey(new Date(now)) ? saved.done.count : 0
 }
 
-/** Start, pause or resume, at `time`. Pausing keeps the exact time left. */
-export function toggle(saved: Saved, time: number): Saved {
+/**
+ * Start, pause or resume, at `time`, by `by`. Pausing keeps the exact time left.
+ * A focus interval someone else paused part way is theirs: another person starts a fresh one
+ * instead of resuming it, so nobody is credited with someone else's study time. The same goes
+ * for one with no known owner, saved before owners were kept.
+ */
+export function toggle(saved: Saved, time: number, by?: string): Saved {
   const t = saved.timer
   if (t.endsAt !== null) return { ...saved, timer: { ...t, remainingMs: Math.max(1, Math.min(t.remainingMs, t.endsAt - time)), endsAt: null } }
-  return { ...saved, timer: { ...t, endsAt: time + t.remainingMs } }
+  // That includes a timer saved before owners were kept: whose time it was is unknown.
+  if (t.phase === 'focus' && by && t.by !== by && t.remainingMs < t.durationMs) {
+    return { ...saved, timer: { ...fresh(saved, 'focus'), endsAt: time + minutes(saved, 'focus') * 60_000, by } }
+  }
+  const { by: _before, ...rest } = t
+  return { ...saved, timer: { ...rest, endsAt: time + t.remainingMs, ...(by ? { by } : {}) } }
+}
+
+/**
+ * "Start studying" or "Continue", at `time`. Expects a timer already brought up to date
+ * with at(), so an interval that ran out is never resumed. A running interval is left as
+ * it is. A focus interval that is ready or paused starts or resumes. A break that has not
+ * started gives way to a new focus interval: the student asked to study.
+ */
+export function studyNow(saved: Saved, time: number, by?: string): Saved {
+  const t = saved.timer
+  if (t.endsAt !== null) return saved
+  if (t.phase === 'focus') return toggle(saved, time, by)
+  return toggle({ ...saved, timer: fresh(saved, 'focus') }, time, by)
 }

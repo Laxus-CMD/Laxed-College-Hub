@@ -2,6 +2,18 @@
 
 Patch notes for College Hub. Newest first.
 
+## 1.8.0 · 2026-11-24 · Study Launchpad
+
+### New
+
+- **Study Launchpad.** When there is no class now or soon, the top of Overview invites you to study instead of repeating your task list. **Start studying** opens Focus Space and starts a focus session (a session already running is left alone), and **Open tasks** goes to Tasks & Assignments. The next class is still shown underneath.
+- **Continue where you left off.** Your last focus session, with its task, how long you focused and when, is shown next to it. **Continue** brings the task back in Focus Space and starts a fresh session; a countdown that ran out is never resumed. Only real sessions are shown: a finished focus interval, or one stopped after at least a minute. Until then you see a short note instead.
+- **Time to rest.** Once every task on your list is done, the hero says so and suggests a break, with **Study anyway** if you want it. A student who has not added any tasks sees the normal welcome instead.
+
+### Privacy
+
+- The last session is kept in this browser, separately for each account. An account's record is removed from the browser when it signs out or its session ends, like the rest of its data.
+
 ## 1.7.0 · 2026-11-23 · Pomodoro timer and points-based grades
 
 ### New

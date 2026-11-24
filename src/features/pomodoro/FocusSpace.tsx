@@ -1,29 +1,38 @@
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import { useModalFocus } from '@/components/ui/useModalFocus'
 
 type Tone = 'focus' | 'short-break' | 'long-break'
 
+/** Lets the timer open Focus Space for a button elsewhere on the page. */
+export interface FocusSpaceControl {
+  enter: (returnTo?: HTMLElement | null) => void
+}
+
 interface Props {
   tone: Tone
   onToggleTimer: () => void
   children: ReactNode
+  control?: Ref<FocusSpaceControl>
 }
 
-export function FocusSpace({ tone, onToggleTimer, children }: Props) {
+export function FocusSpace({ tone, onToggleTimer, children, control }: Props) {
   const [open, setOpen] = useState(false)
   const panel = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  /** The button that opened it, when that was not this card's own. */
+  const returnTo = useRef<HTMLElement | null>(null)
 
   function close() {
     const el = panel.current
     if (el && document.fullscreenElement === el) void document.exitFullscreen().catch(() => {})
     setOpen(false)
-    trigger.current?.focus()
+    ;(returnTo.current ?? trigger.current)?.focus()
   }
 
-  function enter() {
+  function enter(from: HTMLElement | null = null) {
+    returnTo.current = from
     // Mount inside the click/keydown so the native request retains user activation.
     flushSync(() => setOpen(true))
     const el = panel.current
@@ -59,10 +68,12 @@ export function FocusSpace({ tone, onToggleTimer, children }: Props) {
     return () => document.removeEventListener('keydown', keydown)
   }, [])
 
+  useImperativeHandle(control, () => ({ enter }))
+
   useEffect(() => {
     if (!open) return
     const el = panel.current
-    const opener = trigger.current
+    const opener = returnTo.current ?? trigger.current
     const root = document.getElementById('root')
     const wasInert = root?.inert
     if (root) root.inert = true
@@ -78,7 +89,7 @@ export function FocusSpace({ tone, onToggleTimer, children }: Props) {
   }, [open])
 
   return <>
-    <button type="button" ref={trigger} aria-label="Enter Focus Space" title="Enter Focus Space (F)" aria-haspopup="dialog" onClick={enter}
+    <button type="button" ref={trigger} aria-label="Enter Focus Space" title="Enter Focus Space (F)" aria-haspopup="dialog" onClick={() => enter()}
       className="grid size-11 place-items-center rounded-full text-muted hover:bg-fill hover:text-ink">
       <Maximize2 size={16} aria-hidden="true" />
     </button>

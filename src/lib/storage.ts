@@ -75,6 +75,20 @@ export function setDeviceStorage(on: boolean): void {
 export const readDevice = (key: string): string | null => safeStorage.getItem(key)
 export const writeDevice = (key: string, value: string): void => safeStorage.setItem(key, value)
 export const removeDevice = (key: string): void => safeStorage.removeItem(key)
+/** Keys kept in this browser that start with `prefix`, including writes it refused and are held in memory. */
+export function deviceKeys(prefix: string): string[] {
+  const keys = new Set<string>()
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(prefix)) keys.add(key)
+    }
+  } catch {
+    /* storage unavailable: only the memory copy */
+  }
+  for (const key of memory.keys()) if (key.startsWith(prefix)) keys.add(key)
+  return [...keys]
+}
 
 /** For schedules, tasks, notes and grades. Reads and writes the browser for guests only. */
 export const studentStorage = createJSONStorage(() => ({

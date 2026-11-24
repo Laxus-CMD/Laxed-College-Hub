@@ -4,11 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PomodoroCard } from './PomodoroCard'
 import { POMODORO_KEY } from './pomodoroState'
 import { useFocusTask } from './focusTask'
+import { clearStudyLog, readLastSession, studyKeys } from '@/features/study/studyLog'
+import type { Account } from '@/features/auth/api'
+import { useAuthStore } from '@/store/useAuthStore'
 
 const MIN = 60_000
 
 beforeEach(() => {
   localStorage.removeItem(POMODORO_KEY)
+  useAuthStore.setState({ account: null, guest: true })
+  clearStudyLog('guest')
   useFocusTask.setState({ task: '' })
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
   vi.setSystemTime(new Date('2026-11-23T08:00:00'))
@@ -219,6 +224,114 @@ describe('Pomodoro timer', () => {
     // Starting the break saves that session, still once.
     press('Start')
     expect(dots()).toBe('1 focus session finished today')
+  })
+
+  it('notes a finished focus session with its task, once, for Continue on the Overview', () => {
+    render(<PomodoroCard />)
+    act(() => useFocusTask.setState({ task: 'Essay outline' }))
+    const started = Date.now()
+    press('Start')
+    wait(25 * MIN + 1_000)
+    const session = { task: 'Essay outline', endedAt: started + 25 * MIN, focusMs: 25 * MIN }
+    expect(readLastSession()).toEqual(session)
+    press('Start') // the break
+    expect(readLastSession()).toEqual(session)
+  })
+
+  it('keeps a session with the person who started the timer when accounts switch across the deadline', () => {
+    const A = { id: '00000000-0000-4000-8000-00000000000a' } as Account
+    const B = { id: '00000000-0000-4000-8000-00000000000b' } as Account
+    act(() => useAuthStore.setState({ account: A, guest: false }))
+    render(<PomodoroCard />)
+    act(() => useFocusTask.setState({ task: 'A private task' }))
+    press('Start')
+    wait(10 * MIN)
+    // A leaves, B signs in, and the deadline passes while B is here.
+    act(() => useAuthStore.setState({ account: B }))
+    wait(15 * MIN + 1_000)
+    expect(live()).toBe('Focus complete. Time for a break.')
+    expect(readLastSession()).toBeNull()
+    expect(studyKeys(A.id)).toEqual([])
+    // Nor when B resets a timer A started part way through.
+    act(() => useAuthStore.setState({ account: A }))
+    press('Start') // the break, now A's
+    press('Reset')
+    press('Start') // focus, A's
+    wait(12 * MIN)
+    act(() => useAuthStore.setState({ account: B }))
+    press('Reset')
+    expect(readLastSession()).toBeNull()
+    // What B starts is B's.
+    press('Start')
+    wait(25 * MIN + 1_000)
+    expect(readLastSession()).toMatchObject({ task: null, focusMs: 25 * MIN })
+    for (const id of [A.id, B.id]) clearStudyLog(id)
+  })
+
+  it('never credits one person with time another person spent on a paused interval', () => {
+    const A = { id: '00000000-0000-4000-8000-00000000000a' } as Account
+    const B = { id: '00000000-0000-4000-8000-00000000000b' } as Account
+    act(() => useAuthStore.setState({ account: A, guest: false }))
+    render(<PomodoroCard />)
+    press('Start')
+    wait(20 * MIN)
+    press('Pause')
+    // A leaves with 5 minutes to go. B signs in and presses Resume.
+    act(() => useAuthStore.setState({ account: B }))
+    const resumed = Date.now()
+    press('Resume')
+    // B gets a fresh interval of their own, not A's last five minutes.
+    expect(digits()).toBe('25:00')
+    wait(5 * MIN + 1_000)
+    expect(readLastSession()).toBeNull()
+    wait(20 * MIN)
+    expect(readLastSession()).toEqual({ task: null, endedAt: resumed + 25 * MIN, focusMs: 25 * MIN })
+    // The same person pausing and resuming keeps their interval.
+    press('Start') // B's break
+    wait(5 * MIN + 1_000)
+    press('Start') // B's focus
+    wait(10 * MIN)
+    press('Pause')
+    press('Resume')
+    expect(digits()).toBe('15:00')
+    for (const id of [A.id, B.id]) clearStudyLog(id)
+  })
+
+  it('starts fresh when resuming a part-done interval saved before owners were kept', () => {
+    // Paused by version 1.7.0 with 5 minutes left: nobody knows whose 20 minutes those were.
+    const legacy = { phase: 'focus', durationMs: 25 * MIN, remainingMs: 5 * MIN, endsAt: null }
+    localStorage.setItem(POMODORO_KEY, JSON.stringify({ v: 2, preset: 'classic', custom: { focus: 25, break: 5 }, timer: legacy }))
+    render(<PomodoroCard />)
+    expect(digits()).toBe('05:00')
+    const resumed = Date.now()
+    press('Resume')
+    expect(digits()).toBe('25:00')
+    wait(5 * MIN + 1_000)
+    expect(readLastSession()).toBeNull()
+    wait(20 * MIN)
+    // Only the person's own 25 minutes, from when they pressed Resume.
+    expect(readLastSession()).toEqual({ task: null, endedAt: resumed + 25 * MIN, focusMs: 25 * MIN })
+  })
+
+  it('keeps an untouched ownerless interval as it was, since no time was spent on it yet', () => {
+    const legacy = { phase: 'focus', durationMs: 25 * MIN, remainingMs: 25 * MIN, endsAt: null }
+    localStorage.setItem(POMODORO_KEY, JSON.stringify({ v: 2, preset: 'classic', custom: { focus: 25, break: 5 }, timer: legacy }))
+    render(<PomodoroCard />)
+    press('Start')
+    wait(25 * MIN + 1_000)
+    expect(readLastSession()).toMatchObject({ focusMs: 25 * MIN })
+  })
+
+  it('notes a focus interval stopped part way, from a minute of focus', () => {
+    render(<PomodoroCard />)
+    press('Start')
+    wait(40_000)
+    press('Reset')
+    expect(readLastSession()).toBeNull()
+    press('Start')
+    wait(12 * MIN)
+    press('Reset')
+    expect(readLastSession()).toEqual({ task: null, endedAt: Date.now(), focusMs: 12 * MIN })
   })
 
   it('starts fresh from a timer saved by an older version', () => {

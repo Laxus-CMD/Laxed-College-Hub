@@ -1,11 +1,13 @@
-import { FocusSpace } from './FocusSpace'
-import { useEffect, useId, useState } from 'react'
+import { FocusSpace, type FocusSpaceControl } from './FocusSpace'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { ChevronDown, Pause, Play, RotateCcw } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 import { writeDevice } from '@/lib/storage'
 import { formatClock, pad2 } from '@/lib/time'
 import { useFocusTask, useTimerNow } from '@/features/pomodoro/focusTask'
+import { useFocusLauncher, type LaunchOptions } from '@/features/pomodoro/focusLauncher'
+import { recordSession, studyScope } from '@/features/study/studyLog'
 import {
   at,
   BREAK_RANGE,
@@ -16,6 +18,7 @@ import {
   POMODORO_KEY,
   PRESETS,
   readSaved,
+  studyNow,
   toggle,
   type Saved,
   type Settings,
@@ -64,10 +67,43 @@ export function PomodoroCard() {
       ? `${Math.round(timer.durationMs / 60_000)} min ${timer.phase === 'focus' ? 'focus' : 'break'}`
       : 'Paused'
 
+  /** A focus interval that ran out goes into the study log, with the task typed for it. */
+  const noteFinished = (from: Saved) => {
+    const t = from.timer
+    if (t.phase === 'focus' && t.endsAt !== null && t.endsAt <= Date.now()) {
+      recordSession(t.by, { task: useFocusTask.getState().task, endedAt: t.endsAt, focusMs: t.durationMs })
+    }
+  }
+
   const save = (next: Saved) => {
+    noteFinished(stored)
     writeDevice(POMODORO_KEY, JSON.stringify(next))
     setStored(next)
   }
+
+  // Ran out while the page was open, or while it was closed: noted when first seen. Recording twice is harmless.
+  const finishedFocus = completed === 'focus' ? stored.timer.endsAt : null
+  const noteSeen = useEffectEvent(() => noteFinished(stored))
+  useEffect(() => {
+    if (finishedFocus !== null) noteSeen()
+  }, [finishedFocus])
+
+  // Start studying, or continue, from the Overview's hero.
+  const focusSpace = useRef<FocusSpaceControl>(null)
+  const launch = useEffectEvent(({ task: restore, returnTo }: LaunchOptions) => {
+    const time = Date.now()
+    // Saved first: an interval that just ran out is noted with the task typed for it.
+    save(studyNow(at(stored, time).saved, time, studyScope()))
+    if (restore !== undefined) setTask(restore ?? '')
+    focusSpace.current?.enter(returnTo ?? null)
+  })
+  useEffect(() => {
+    const own = (options: LaunchOptions) => launch(options)
+    useFocusLauncher.setState({ launch: own })
+    return () => {
+      if (useFocusLauncher.getState().launch === own) useFocusLauncher.setState({ launch: null })
+    }
+  }, [])
 
   // Another tab started, paused or changed the timer.
   useEffect(() => {
@@ -78,7 +114,13 @@ export function PomodoroCard() {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
-  const reset = () => save({ ...saved, timer: fresh(saved, 'focus') })
+  const reset = () => {
+    // Stopping part way through a focus interval still counts as studying, from a minute on.
+    if (timer.phase === 'focus' && !idle) {
+      recordSession(timer.by, { task: useFocusTask.getState().task, endedAt: now, focusMs: timer.durationMs - remainingMs })
+    }
+    save({ ...saved, timer: fresh(saved, 'focus') })
+  }
   /** Before an interval starts, new lengths show at once. During one, they wait for the next. */
   const settle = (next: Settings) => save({ ...saved, ...next, timer: idle ? fresh(next, timer.phase) : timer })
   const choose = (preset: Settings['preset']) => {
@@ -89,7 +131,7 @@ export function PomodoroCard() {
 
   const toggleTimer = () => {
     const time = Date.now()
-    save(toggle(at(stored, time).saved, time))
+    save(toggle(at(stored, time).saved, time, studyScope()))
   }
   const clockFace = (immersive: boolean) => (
     <>
@@ -182,7 +224,7 @@ export function PomodoroCard() {
             </span>
           ) : null}
         </div>
-        <FocusSpace tone={timer.phase === 'focus' ? 'focus' : timer.durationMs >= 10 * 60_000 ? 'long-break' : 'short-break'} onToggleTimer={toggleTimer}>
+        <FocusSpace control={focusSpace} tone={timer.phase === 'focus' ? 'focus' : timer.durationMs >= 10 * 60_000 ? 'long-break' : 'short-break'} onToggleTimer={toggleTimer}>
           <input type="text" aria-label="Current task" placeholder="Add a task (optional)" maxLength={160}
             value={task} onChange={(event) => setTask(event.target.value)}
             className="min-h-11 w-full max-w-sm rounded-lg bg-transparent px-3 text-center text-lg text-ink placeholder:text-muted focus:bg-fill" />
