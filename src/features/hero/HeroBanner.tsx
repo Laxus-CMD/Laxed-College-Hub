@@ -2,24 +2,13 @@ import type { ReactNode } from 'react'
 import { MapPin } from 'lucide-react'
 import type { HeroState } from '@/types'
 import { Button } from '@/components/ui/Button'
-import { Pill } from '@/components/ui/Chip'
-import { navigate } from '@/lib/route'
-import {
-  describeDay,
-  formatClock,
-  formatDuration,
-  formatRange,
-  plural,
-  toMinutes,
-} from '@/lib/time'
+import { formatDuration, formatRange, plural, toMinutes } from '@/lib/time'
 import { cn } from '@/lib/cn'
-import { dueLabel } from '@/features/assignments/urgency'
 import { ClockFace } from '@/features/hero/ClockFace'
+import { StudyLaunchpad } from '@/features/hero/StudyLaunchpad'
 import { openNoteForSession } from '@/features/notes/startNote'
 import { useCourseMap } from '@/store/selectors'
 import { useUiStore } from '@/store/useUiStore'
-
-const TONE_CLASS = { bad: 'text-bad', warn: 'text-warn', normal: 'text-muted', faint: 'text-faint' } as const
 
 function Shell({
   now,
@@ -129,45 +118,6 @@ export function HeroBanner({ state, now }: { state: HeroState; now: Date }) {
     )
   }
 
-  const { urgentTasks, next } = state
-  const shown = urgentTasks.slice(0, 3)
-  const anyOverdue = shown.some((t) => dueLabel(t, now).tone === 'bad')
-  const nextCourse = next ? courses.get(next.session.courseId) : undefined
-  return (
-    <Shell now={now} status="Study mode" arc={next && next.start.getDate() === now.getDate() ? { from: nowMin, to: toMinutes(next.session.start) } : null}>
-      <h2 className="relative mt-6 text-[clamp(28px,4vw,36px)] leading-tight font-semibold tracking-[-0.03em]">
-        {shown.length === 0 ? 'You are all caught up' : anyOverdue ? 'Catch up first' : 'Focus time'}
-      </h2>
-      {shown.length > 0 ? (
-        <ul className="relative mt-3 flex max-w-[62%] flex-col gap-1.5 max-sm:max-w-full">
-          {shown.map((t) => {
-            const due = dueLabel(t, now)
-            return (
-              <li key={t.id} className="flex items-baseline justify-between gap-4 text-[15px]">
-                <span className="truncate">{t.title}</span>
-                <span className={cn('shrink-0 text-xs', TONE_CLASS[due.tone])}>{due.text}</span>
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <p className="relative mt-2 text-muted">Nothing is due in the next 7 days.</p>
-      )}
-      <div className="relative mt-auto flex flex-wrap items-center gap-3 pt-6 text-[13px] text-muted">
-        {next ? (
-          <>
-            <Pill>{nextCourse?.code ?? 'Class'}</Pill>
-            <span>
-              Next class {describeDay(next.start, now).toLowerCase()} at {formatClock(toMinutes(next.session.start))}
-            </span>
-          </>
-        ) : (
-          <span>No classes on the schedule this week.</span>
-        )}
-        <Button size="sm" onClick={() => navigate('assignments')}>
-          Open tasks
-        </Button>
-      </div>
-    </Shell>
-  )
+  // Study mode: no class now or soon.
+  return <StudyLaunchpad now={now} next={state.next} />
 }

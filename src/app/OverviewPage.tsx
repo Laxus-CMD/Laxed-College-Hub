@@ -102,6 +102,12 @@ export default function OverviewPage() {
       ) : null}
       {/* The default order follows importance: what is happening now and what is due, then the tools used alongside, then the rest. */}
       <CustomizableDashboard layout={layout} editing={editing} widgets={widgets} onChange={save} />
+      {/* A hidden timer still runs Focus Space, so the hero can start or continue studying. */}
+      {layout.hidden.includes('pomodoro') ? (
+        <div hidden>
+          <PomodoroCard />
+        </div>
+      ) : null}
       {!editing && readingOrder(layout).length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center">
           <p className="text-[15px] font-medium">All widgets are hidden</p>
