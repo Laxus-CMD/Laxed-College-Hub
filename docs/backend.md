@@ -129,12 +129,17 @@ schema_migrations  name PK, applied_at
 
 ```
 student_profiles   user_id PK → users ON DELETE CASCADE, revision, display_name, is_demo,
-                   banner_dismissed, grade_scale jsonb, prior_cgpa, prior_units
+                   banner_dismissed, grade_scale jsonb, prior_cgpa, prior_units,
+                   task_mode (008; the Tasks workspace mode, null means Classic; a save that leaves it out keeps it)
 courses            (user_id, id) PK, code, name, units, color, professor fields,
                    grade_override, grade_target
-class_sessions     (user_id, id) PK, course (cascade), days, start_time, end_time, room, building
+class_sessions     (user_id, id) PK, course (cascade), days, start_time, end_time, room, building,
+                   starts_on, ends_on (006; term dates; a save that leaves them out keeps them)
 tasks              (user_id, id) PK, course (set null), kind, title, due, done, weight, source,
-                   external_id (unique per student)
+                   external_id (unique per student),
+                   category (007; 'exam' or null, always null on a to-do; a save that leaves it out keeps it),
+                   progress (009; 'started' or null, for Flow; kept when done; a save that leaves it out keeps it),
+                   estimate (010; whole minutes 5 to 1440 or null; a save that leaves it out keeps it)
 notes              (user_id, id) PK, course and class (set null), title, body, session_date,
                    created_at, updated_at, text_revision, text_client
 grade_components   (user_id, id) PK, course (cascade), name, weight, score,
@@ -147,7 +152,7 @@ A role can only be one of the two rows in `roles`, so adding a role (for example
 
 | Request | What it does |
 | --- | --- |
-| `GET /api/data` | Everything the student has saved, and its `revision`. With `?since=N`, `data` is null if nothing changed since revision N. |
+| `GET /api/data` | Everything the student has saved, and its `revision`. With `?since=N`, `data` is null if nothing changed since revision N. Every answer also lists `features`, what this API can store beyond 1.9.0 (`taskMode`, `progress`, `estimate`); the app hides what is not listed. |
 | `POST /api/data/sync` | Applies `upsert`, `remove` and `profile` changes in one transaction: all of it or none of it. |
 
 - **Isolation:** whose data it is only ever comes from the session cookie. A save also names the account its tab is showing. If another tab signed in to someone else, the two differ and the save is refused (409).

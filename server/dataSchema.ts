@@ -6,6 +6,27 @@ import { z } from 'zod'
  * from saving everything else. Unknown keys inside records are dropped.
  */
 
+/**
+ * What this API can store beyond 1.9.0, sent with every load. The app hides what the API it
+ * talks to cannot keep, so an app deployed before its API never loses data. Must match
+ * API_FEATURES in src/types.
+ */
+export const FEATURES = ['taskMode', 'progress', 'estimate'] as const
+
+/** The Tasks workspace modes. Must match TASK_MODES in src/types and the CHECK in migration 008. */
+export const TASK_MODES = ['classic', 'flow', 'workload', 'between'] as const
+
+/**
+ * Fields an older app leaves out of a record, as [field, column]. A record without one keeps
+ * what is saved. Must match KEEP_IF_MISSING in src/sync/doc.ts (tests/contract.test.ts checks).
+ */
+export const KEEP_IF_MISSING = {
+  sessions: [['startsOn', 'starts_on'], ['endsOn', 'ends_on']],
+  tasks: [['category', 'category'], ['progress', 'progress'], ['estimate', 'estimate']],
+  // Handled by keepTotals in studentData.ts, which also defaults it; listed so the contract test covers it.
+  components: [['totalScore', 'total_score']],
+} as const
+
 /** How much one account can hold. */
 export const QUOTAS = {
   courses: 200,
@@ -78,6 +99,10 @@ const task = z.object({
   externalId: maybe(text(500)).transform((v) => v || null),
   /** Missing keeps what is saved (apps before 1.9.0 do not know it); null clears it. */
   category: z.enum(['exam']).nullable().optional(),
+  /** Missing keeps what is saved (apps before 1.10.0 do not know it); null means not started. */
+  progress: z.enum(['started']).nullable().optional(),
+  /** Expected minutes of work. Missing keeps what is saved (apps before 1.10.0); null means none given. */
+  estimate: z.number().int().min(5).max(1440).nullable().optional(),
 })
 
 const note = z
@@ -154,6 +179,8 @@ export const saveBody = z.strictObject({
       name: text(60).optional(),
       isDemo: z.boolean().optional(),
       bannerDismissed: z.boolean().optional(),
+      /** The Tasks workspace mode. Missing keeps what is saved (apps before 1.10.0); null goes back to Classic. */
+      taskMode: z.enum(TASK_MODES).nullable().optional(),
       /** Null goes back to the default scale. */
       scale: z.array(z.object({ grade: number, min: number })).max(20).nullable().optional(),
       prior: z.object({ cgpa: number.nullable(), units: number.nullable() }).optional(),

@@ -4,19 +4,11 @@ import { CheckButton } from '@/components/ui/CheckButton'
 import { CourseChip } from '@/components/ui/Chip'
 import { IconButton } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
-import { dueLabel, type DueTone } from '@/features/assignments/urgency'
+import { dueLabel, DUE_TONE_CLASS as TONE } from '@/features/assignments/urgency'
 import { deleteTask } from '@/store/actions'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
 import { typeLabel } from '@/features/assignments/taskType'
-
-/** Understated: overdue and due today get color, the rest stay quiet. */
-const TONE: Record<DueTone, string> = {
-  bad: 'text-bad font-medium',
-  warn: 'text-warn font-medium',
-  normal: 'text-muted',
-  faint: 'text-faint',
-}
 
 interface TaskRowProps {
   task: Task
@@ -38,20 +30,23 @@ export function TaskRow({ task, now, course, full = false }: TaskRowProps) {
 
   const meta = [
     typeLabel(task),
+    !task.done && task.progress === 'started' ? 'In progress' : null,
     task.weight ? `${task.weight}% of grade` : null,
     task.source === 'ics' ? 'From Canvas' : null,
   ]
     .filter(Boolean)
-    .join(', ')
+    .join(full ? ' · ' : ', ')
 
   return (
     <li
       data-task-id={task.id}
       className={cn(
-        'group -mx-2 grid items-center gap-x-3 gap-y-0.5 rounded-xl px-2 py-2 transition-colors duration-150 hover:bg-fill',
+        'group grid items-center gap-x-3 gap-y-0.5 transition-colors duration-150',
+        // The list view is flat: rows sit on hairlines. The compact card version keeps its soft hover.
+        full ? 'px-1 py-2.5 hover:bg-fill/50' : '-mx-2 rounded-xl px-2 py-2 hover:bg-fill',
         'grid-cols-[auto_minmax(0,1fr)_auto]',
         // The due column fits its longest label and keeps short ones aligned.
-        full ? '@lg:grid-cols-[auto_minmax(0,1fr)_auto_minmax(5.5rem,auto)_auto] @lg:py-2.5' : '@lg:grid-cols-[auto_minmax(0,1fr)_auto_minmax(5.5rem,auto)]',
+        full ? '@lg:grid-cols-[auto_minmax(0,1fr)_minmax(6rem,auto)_minmax(5.5rem,auto)_auto]' : '@lg:grid-cols-[auto_minmax(0,1fr)_auto_minmax(5.5rem,auto)]',
         flash && 'animate-[flash_1.6s_ease-out]',
       )}
     >
@@ -75,7 +70,7 @@ export function TaskRow({ task, now, course, full = false }: TaskRowProps) {
       </button>
       {/* Every cell has a fixed place, so grid auto-placement can never reorder them. */}
       <span className="col-start-2 row-start-2 justify-self-start @lg:col-start-3 @lg:row-start-1 @lg:justify-self-end">
-        {course ? <CourseChip course={course} /> : null}
+        {course ? full ? <CourseLabel course={course} /> : <CourseChip course={course} /> : null}
       </span>
       <span className={cn('col-start-3 row-start-1 text-right text-xs whitespace-nowrap tabular-nums @lg:col-start-4', TONE[due.tone])}>
         {due.text}
@@ -90,5 +85,15 @@ export function TaskRow({ task, now, course, full = false }: TaskRowProps) {
         </IconButton>
       ) : null}
     </li>
+  )
+}
+
+/** The course as quiet text with its color, for the flat list. */
+function CourseLabel({ course }: { course: Course }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap text-muted">
+      <i className="size-1.5 shrink-0 rounded-full" style={{ background: course.color }} aria-hidden="true" />
+      {course.code}
+    </span>
   )
 }

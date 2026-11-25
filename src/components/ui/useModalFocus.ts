@@ -11,13 +11,16 @@ export const FOCUSABLE =
 export function useModalFocus(panel: RefObject<HTMLElement | null>, onClose: () => void) {
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
+    // If the opener is gone when this closes (its task moved to another day or column), focus goes
+    // to the same task where it is now, so keyboard and screen-reader users keep their place.
+    const taskId = previous?.closest<HTMLElement>('[data-task-id]')?.dataset.taskId
     const el = panel.current
     const target =
       el?.querySelector<HTMLElement>('[data-autofocus]') ??
       el?.querySelector<HTMLElement>('input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea') ??
       el
     target?.focus()
-    return () => previous?.focus?.()
+    return () => restoreFocus(previous, taskId)
   }, [panel])
 
   return (e: KeyboardEvent) => {
@@ -39,6 +42,17 @@ export function useModalFocus(panel: RefObject<HTMLElement | null>, onClose: () 
       first.focus()
     }
   }
+}
+
+function restoreFocus(previous: HTMLElement | null, taskId: string | undefined) {
+  if (previous?.isConnected) return previous.focus?.()
+  if (!taskId) return
+  // After this render settles: the task's new element is in the page by then.
+  requestAnimationFrame(() => {
+    const now = document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(taskId)}"]`)
+    const target = now?.matches(FOCUSABLE) ? now : now?.querySelector<HTMLElement>(FOCUSABLE)
+    target?.focus()
+  })
 }
 
 /** For the backdrop. Without preventDefault, the press would move focus away after it has gone back. */

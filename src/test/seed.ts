@@ -26,7 +26,7 @@ export function resetStores(now: Date): void {
   useTaskStore.setState({ tasks: demo.tasks })
   useNoteStore.setState({ notes: demo.notes })
   useGradeStore.setState({ components: demo.components, overrides: {}, targets: {}, prior: { cgpa: null, units: null } })
-  useSettingsStore.setState({ name: '', isDemo: true, bannerDismissed: false })
+  useSettingsStore.setState({ name: '', isDemo: true, bannerDismissed: false, taskMode: null })
   useAuthStore.setState({ account: null, guest: true })
   useThemeStore.setState({ family: 'matcha', theme: 'light' })
   delete document.documentElement.dataset.theme

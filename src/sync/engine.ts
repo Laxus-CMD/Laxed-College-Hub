@@ -1,4 +1,5 @@
 import { accountsApi, ApiError, request, type Account } from '@/features/auth/api'
+import { API_FEATURES, type ApiFeature } from '@/types'
 import { uid } from '@/lib/cn'
 import { setDeviceStorage } from '@/lib/storage'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -49,7 +50,46 @@ interface LoadResponse {
   accountId: string
   revision: number
   data: ServerDoc | null
+  /** Missing from an API before 1.10.0. */
+  features?: unknown
 }
+
+/**
+ * A request body without what the account's API has not said it can store. An older API would
+ * refuse a profile field (blocking every save) or drop a task field. Only the request is trimmed:
+ * the engine still counts the whole change as sent, so it is not resent forever.
+ */
+/** Task fields an API stores only once it lists them, named as the feature. */
+const TASK_FIELDS = ['progress', 'estimate'] as const satisfies readonly ApiFeature[]
+
+/** Task fields that `doc` gives a value, beyond `before`, which the account's API has not said it can store. */
+export function unstorable(doc: Doc, before: Doc): ApiFeature[] {
+  const { features } = useSyncStore.getState()
+  const had = new Map(before.tasks.map((t) => [t.id, t]))
+  const added = doc.tasks.filter((t) => had.get(t.id) !== t)
+  return TASK_FIELDS.filter((f) => !features.includes(f) && added.some((t) => t[f] !== null && t[f] !== undefined && had.get(t.id)?.[f] !== t[f]))
+}
+
+/** Changes without these task fields, so the server (and `apply`) keep what they already hold. */
+function withoutTaskFields(changes: Changes, fields: readonly ApiFeature[]): Changes {
+  if (!fields.length || !changes.upsert.tasks.some((t) => fields.some((f) => f in t))) return changes
+  const trim = (t: object) => Object.fromEntries(Object.entries(t).filter(([k]) => !(fields as readonly string[]).includes(k)))
+  return { ...changes, upsert: { ...changes.upsert, tasks: changes.upsert.tasks.map(trim) as Changes['upsert']['tasks'] } }
+}
+
+function forApi(changes: Changes): Changes {
+  const { features } = useSyncStore.getState()
+  let out = changes
+  if (!features.includes('taskMode') && out.profile && 'taskMode' in out.profile) {
+    const { taskMode: _t, ...profile } = out.profile
+    out = { ...out, profile: Object.keys(profile).length ? profile : undefined }
+  }
+  return withoutTaskFields(out, TASK_FIELDS.filter((f) => !features.includes(f)))
+}
+
+/** What the API says it can store, keeping only what this app knows about. */
+const featuresOf = (res: LoadResponse): ApiFeature[] =>
+  Array.isArray(res.features) ? API_FEATURES.filter((f) => (res.features as unknown[]).includes(f)) : []
 interface SaveResponse {
   revision: number
   data: ServerDoc | null
@@ -220,6 +260,7 @@ export class SyncEngine {
       local: 'none',
       message: null,
       heldFor: this.heldFor(account.id),
+      features: [],
     })
 
     try {
@@ -227,6 +268,8 @@ export class SyncEngine {
       if (epoch !== this.epoch) return
       if (res.accountId !== account.id || !res.data) return await this.followSession(epoch)
       const open: Open = { account, base: this.fromServer(res.data), revision: res.revision }
+      // Before the stores fill, so the page never shows a mode this API cannot keep.
+      useSyncStore.setState({ features: featuresOf(res) })
       const { saved, refused } = await this.recover(open, epoch)
       if (epoch !== this.epoch) return
       this.open_ = open
@@ -263,7 +306,10 @@ export class SyncEngine {
     const refused: { entry: Pending; changes: Changes }[] = []
     for (const p of listPending(open.account.id)) {
       if (p.clientId !== this.clientId && live.has(p.clientId)) continue
-      const changes = notYetApplied(p.changes, open.base)
+      const changes = withoutTaskFields(
+        notYetApplied(p.changes, open.base),
+        TASK_FIELDS.filter((f) => !(p.features ?? []).includes(f)),
+      )
       // From here on, only this exact entry may be deleted. Anything written under the same key
       // while a request is out, for example by the tab that made it, is newer and stays.
       if (isEmpty(changes)) {
@@ -271,7 +317,7 @@ export class SyncEngine {
         continue
       }
       try {
-        const body = { accountId: p.accountId, clientId: p.clientId, baseRevision: p.revision, ...changes }
+        const body = { accountId: p.accountId, clientId: p.clientId, baseRevision: p.revision, ...forApi(changes) }
         const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body))
         if (epoch !== this.epoch) return { saved, refused }
         open.base = res.data ? this.fromServer(res.data) : apply(open.base, changes)
@@ -357,7 +403,14 @@ export class SyncEngine {
     let local: LocalCopy = 'none'
     if (isEmpty(changes)) dropPending(open.account.id, this.clientId)
     else {
-      local = savePending({ accountId: open.account.id, email: open.account.email, clientId: this.clientId, revision: open.revision, changes })
+      local = savePending({
+        accountId: open.account.id,
+        email: open.account.email,
+        clientId: this.clientId,
+        revision: open.revision,
+        changes,
+        features: [...useSyncStore.getState().features],
+      })
     }
     if (useSyncStore.getState().local !== local) useSyncStore.setState({ local })
   }
@@ -401,9 +454,11 @@ export class SyncEngine {
 
   /**
    * Adds an import, all or nothing. If the account cannot take it, for example because it
-   * would be full, everything goes back to how it was.
+   * would be full, everything goes back to how it was. `{ saved: 'partly' }` means it was saved
+   * but the account's API cannot keep the task fields named in `unstored` yet, so the copy the
+   * import came from must stay.
    */
-  async addAll(doc: Doc): Promise<'saved' | 'pending' | { error: string }> {
+  async addAll(doc: Doc): Promise<'saved' | { saved: 'partly'; unstored: ApiFeature[] } | 'pending' | { error: string }> {
     // Anything unsaved goes first, so a refusal is about the import alone.
     if (!(await this.flush()) || !this.open_) return { error: 'Your latest changes are not saved yet. Try again once they are.' }
     const before = readStores()
@@ -411,7 +466,10 @@ export class SyncEngine {
     this.fillStores(doc)
     useSyncStore.setState({ status: 'unsaved' })
     this.keepNow()
-    if (await this.flush()) return 'saved'
+    if (await this.flush()) {
+      const unstored = unstorable(doc, before)
+      return unstored.length ? { saved: 'partly', unstored } : 'saved'
+    }
     const { status, message } = useSyncStore.getState()
     if (epoch !== this.epoch || status !== 'blocked') return 'pending'
     this.fillStores(before)
@@ -447,7 +505,7 @@ export class SyncEngine {
 
   private async send(open: Open, sent: Doc, changes: Changes, closing: boolean): Promise<void> {
     const epoch = this.epoch
-    const body = { accountId: open.account.id, clientId: this.clientId, baseRevision: open.revision, ...changes }
+    const body = { accountId: open.account.id, clientId: this.clientId, baseRevision: open.revision, ...forApi(changes) }
     const keepalive = closing && JSON.stringify(body).length < KEEPALIVE_LIMIT
     if (!this.retryDelay) useSyncStore.setState({ status: 'saving', message: null })
     this.firstUnsavedAt = 0
@@ -512,9 +570,26 @@ export class SyncEngine {
       // A save that finished meanwhile knows more than this answer.
       if (epoch !== this.epoch || this.saving || open.revision !== revision) return
       if (res.accountId !== open.account.id) return await this.followSession(epoch)
-      if (!res.data) return
-      this.rebase(open, base, res.data)
-      open.revision = res.revision
+      // The API can be upgraded (or rolled back) while the tab stays open.
+      const features = featuresOf(res)
+      const known = useSyncStore.getState().features
+      let answer = res
+      // A newly listed field was stripped from everything this tab loaded before, so the stores
+      // hold null where the account may hold a value. Load everything again before allowing
+      // writes to it; otherwise the next edit would send that null and clear the saved value.
+      if (features.some((f) => !known.includes(f)) && !answer.data) {
+        answer = await withTimeout(request<LoadResponse>('GET', '/data'))
+        if (epoch !== this.epoch || this.saving || open.revision !== revision) return
+        if (answer.accountId !== open.account.id) return await this.followSession(epoch)
+      }
+      if (answer.data) {
+        // Edits made meanwhile hold null for a newly listed field (this tab never had its value):
+        // they are laid over the server without it, so the server's value stays.
+        this.rebase(open, base, answer.data, {}, features.filter((f) => !known.includes(f)))
+        open.revision = answer.revision
+      }
+      if (features.join() !== known.join()) useSyncStore.setState({ features })
+      if (!answer.data) return
       this.settled()
       if (useSyncStore.getState().status === 'unsaved') this.schedule(SAVE_DELAY)
     } catch (err) {
@@ -523,10 +598,10 @@ export class SyncEngine {
   }
 
   /** Takes the server's version, and puts edits made since `sent` back on top. */
-  private rebase(open: Open, sent: Doc, data: ServerDoc, noteCopies: Record<string, string> = {}): void {
+  private rebase(open: Open, sent: Doc, data: ServerDoc, noteCopies: Record<string, string> = {}, withhold: readonly ApiFeature[] = []): void {
     const now = readStores()
     const server = this.fromServer(data)
-    const next = apply(server, diff(sent, now), noteCopies)
+    const next = apply(server, withoutTaskFields(diff(sent, now), withhold), noteCopies)
     open.base = server
     if (!docsEqual(now, next)) {
       this.fillStores(next)

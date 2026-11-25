@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { apply, cleanDoc, diff, type Changes, type Doc } from '@/sync/doc'
 
 const empty: Doc = {
-  profile: { name: 'Juan', isDemo: false, bannerDismissed: false, scale: null, prior: { cgpa: null, units: null } },
+  profile: { name: 'Juan', isDemo: false, bannerDismissed: false, taskMode: null, scale: null, prior: { cgpa: null, units: null } },
   courses: [], sessions: [], tasks: [], notes: [], components: [],
 }
 const doc = (d: Partial<Doc>): Doc => cleanDoc({ ...empty, ...d })

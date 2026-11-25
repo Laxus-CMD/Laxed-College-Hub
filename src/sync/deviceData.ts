@@ -1,4 +1,4 @@
-import type { GradeScaleRow } from '@/types'
+import type { GradeScaleRow, Task } from '@/types'
 import { makeDemoData } from '@/data/demo'
 import { readDevice, removeDevice, writeDevice } from '@/lib/storage'
 import { useGradeStore } from '@/store/useGradeStore'
@@ -29,6 +29,7 @@ export function toDoc(raw: Json): Doc {
       name: typeof profile.name === 'string' ? profile.name : '',
       isDemo: profile.isDemo === true,
       bannerDismissed: profile.bannerDismissed === true,
+      taskMode: profile.taskMode as Doc['profile']['taskMode'],
       scale: Array.isArray(profile.scale) ? (list(profile.scale) as unknown as GradeScaleRow[]) : null,
       prior: { cgpa: numOrNull(prior.cgpa), units: numOrNull(prior.units) },
     },
@@ -248,14 +249,26 @@ export function mergeImport(account: Doc, from: Doc): Merge {
   ).out
 
   const tasks = from.tasks.map((t) => ({ ...t, courseId: courseOf(t.courseId) }))
-  doc.tasks = take(account.tasks, tasks, 'tasks', (t) =>
+  const sameTask = (t: Task) =>
     account.tasks.find(
       (x) =>
         x.id === t.id ||
         (t.externalId !== undefined && x.externalId === t.externalId) ||
         (x.kind === t.kind && norm(x.title) === norm(t.title) && x.due === t.due && x.courseId === t.courseId),
-    ),
-  ).out
+    )
+  doc.tasks = take(account.tasks, tasks, 'tasks', sameTask).out
+  // A task the account already has keeps its version, but takes a time estimate or progress the
+  // account left empty, as courses do. This also restores what an account could not store when
+  // it was first imported (an API before 1.10.0), from the copy that was kept for that reason.
+  for (const t of tasks) {
+    const same = sameTask(t)
+    if (!same) continue
+    const i = doc.tasks.findIndex((x) => x.id === same.id)
+    const mine = doc.tasks[i]!
+    const estimate = mine.estimate ?? t.estimate ?? null
+    const progress = mine.progress ?? (mine.done === t.done ? t.progress : null) ?? null
+    if (estimate !== (mine.estimate ?? null) || progress !== (mine.progress ?? null)) doc.tasks[i] = { ...mine, estimate, progress }
+  }
 
   const textKey = (n: { title: string; body: string }) => JSON.stringify([n.title, n.body])
   const texts = new Set(account.notes.map(textKey))

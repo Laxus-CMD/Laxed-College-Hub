@@ -80,7 +80,7 @@ const full = {
     notes: [note('n1', { courseId: 'c1', sessionId: 's1', sessionDate: '2026-11-19' })],
     components: [component('g1', 'c1', { score: 88.25 }), component('g2', 'c1')],
   },
-  profile: { name: 'Juan', isDemo: false, bannerDismissed: true, scale: [{ grade: 4, min: 95 }], prior: { cgpa: 3.4, units: 36 } },
+  profile: { name: 'Juan', isDemo: false, bannerDismissed: true, taskMode: 'flow', scale: [{ grade: 4, min: 95 }], prior: { cgpa: 3.4, units: 36 } },
 }
 
 describe('loading and saving', () => {
@@ -88,7 +88,7 @@ describe('loading and saving', () => {
     const s = await student()
     expect(await s.load()).toEqual({
       revision: 0,
-      profile: { name: '', isDemo: false, bannerDismissed: false, scale: null, prior: { cgpa: null, units: null } },
+      profile: { name: '', isDemo: false, bannerDismissed: false, taskMode: null, scale: null, prior: { cgpa: null, units: null } },
       courses: [], sessions: [], tasks: [], notes: [], components: [],
     })
   })
@@ -129,7 +129,7 @@ describe('loading and saving', () => {
   it('answers ?since with nothing when nothing changed', async () => {
     const s = await student()
     await s.save(full)
-    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null })
+    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null, features: ['taskMode', 'progress', 'estimate'] })
     expect((await call(s.cookie, 'GET', '/data?since=0')).json.data.courses).toHaveLength(2)
     expect((await call(s.cookie, 'GET', '/data?since=abc')).status).toBe(400)
   })
@@ -529,6 +529,75 @@ describe('academic terms', () => {
     const res = await s.send({ upsert: { sessions: [session('bad', 'c1', { endsOn: 'next week' })] } })
     expect(res.status).toBe(400)
     expect((await s.load()).sessions).toEqual([])
+  })
+})
+
+describe('the Tasks workspace mode', () => {
+  it('follows the account, survives a save from an older app, and goes back to Classic on null', async () => {
+    const s = await student()
+    await s.save({ profile: { taskMode: 'workload' } })
+    expect((await s.load()).profile.taskMode).toBe('workload')
+    // Version 1.9.0 renames the student. It has never heard of workspace modes.
+    await s.save({ profile: { name: 'Juan' } })
+    expect((await s.load()).profile).toMatchObject({ name: 'Juan', taskMode: 'workload' })
+    await s.save({ profile: { taskMode: null } })
+    expect((await s.load()).profile.taskMode).toBeNull()
+  })
+
+  it('refuses a mode it does not know, and saves nothing', async () => {
+    const s = await student()
+    const res = await s.send({ profile: { taskMode: 'kanban' } })
+    expect(res.status).toBe(400)
+    expect((await s.load()).profile.taskMode).toBeNull()
+  })
+})
+
+describe('task progress (Flow)', () => {
+  it('is reported as something this API can store, on every load', async () => {
+    const s = await student()
+    expect((await call(s.cookie, 'GET', '/data')).json.features).toEqual(['taskMode', 'progress', 'estimate'])
+    expect((await call(s.cookie, 'GET', '/data?since=0')).json).toMatchObject({ data: null, features: ['taskMode', 'progress', 'estimate'] })
+  })
+
+  it('stores it, keeps it when an older app saves the task without knowing, and clears it on null', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('essay', { progress: 'started' })] } })
+    expect((await s.load()).tasks).toEqual([task('essay', { progress: 'started' })])
+    // Version 1.9.0 marks it done. It has never heard of progress.
+    const res = await s.send({ upsert: { tasks: [task('essay', { done: true })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    expect(res.json.data.tasks[0]).toMatchObject({ id: 'essay', done: true, progress: 'started' })
+    await s.save({ upsert: { tasks: [task('essay', { done: true, progress: null })] } })
+    expect((await s.load()).tasks).toEqual([task('essay', { done: true })])
+  })
+
+  it('refuses a stage it does not know, and saves nothing', async () => {
+    const s = await student()
+    const res = await s.send({ upsert: { tasks: [task('odd', { progress: 'blocked' })] } })
+    expect(res.status).toBe(400)
+    expect((await s.load()).tasks).toEqual([])
+  })
+})
+
+describe('time estimates (Workload)', () => {
+  it('stores whole minutes, keeps them when an older app saves the task without knowing, and clears on null', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('essay', { estimate: 90 })] } })
+    expect((await s.load()).tasks).toEqual([task('essay', { estimate: 90 })])
+    const res = await s.send({ upsert: { tasks: [task('essay', { done: true })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    expect(res.json.data.tasks[0]).toMatchObject({ id: 'essay', done: true, estimate: 90 })
+    await s.save({ upsert: { tasks: [task('essay', { estimate: null })] } })
+    expect((await s.load()).tasks).toEqual([task('essay')])
+  })
+
+  it('refuses an estimate that is not whole minutes from 5 to 1440, and saves nothing', async () => {
+    const s = await student()
+    for (const estimate of [0, 4, 1441, 30.5, '60']) {
+      const res = await s.send({ upsert: { tasks: [task('odd', { estimate })] } })
+      expect(res.status, String(estimate)).toBe(400)
+    }
+    expect((await s.load()).tasks).toEqual([])
   })
 })
 

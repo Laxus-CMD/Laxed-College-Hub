@@ -60,6 +60,14 @@ export function urgentTasks(tasks: Task[], now: Date, limit = 4): Task[] {
 
 export type DueTone = 'bad' | 'warn' | 'normal' | 'faint'
 
+/** Understated: overdue and due today get color, the rest stay quiet. */
+export const DUE_TONE_CLASS: Record<DueTone, string> = {
+  bad: 'text-bad font-medium',
+  warn: 'text-warn font-medium',
+  normal: 'text-muted',
+  faint: 'text-faint',
+}
+
 /** Short text for the due column, like "Due tomorrow" or "Overdue 2 days". */
 export function dueLabel(task: Task, now: Date): { text: string; tone: DueTone } {
   const urgency = getUrgency(task, now)

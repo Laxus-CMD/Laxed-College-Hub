@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Choice, ChoiceGroup, Input, Label, Select } from '@/components/ui/Field'
 import { Dialog } from '@/components/ui/Dialog'
+import { ESTIMATES, estimateLabel } from '@/features/assignments/estimate'
 import { fieldsOf, TASK_TYPES, typeOf, type TaskType } from '@/features/assignments/taskType'
+import { useCanStore } from '@/sync/useSyncStore'
 import { deleteTask } from '@/store/actions'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useTaskStore } from '@/store/useTaskStore'
@@ -30,6 +32,9 @@ export function TaskDialog({ id, courseId }: { id?: string; courseId?: string })
   const [date, setDate] = useState(initialDue.date)
   const [time, setTime] = useState(initialDue.time)
   const [weight, setWeight] = useState(existing?.weight?.toString() ?? '')
+  // Shown only where it can be kept: a guest, or an account whose API stores estimates.
+  const canEstimate = useCanStore('estimate')
+  const [estimate, setEstimate] = useState(existing?.estimate?.toString() ?? '')
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -42,6 +47,8 @@ export function TaskDialog({ id, courseId }: { id?: string; courseId?: string })
       courseId: course || undefined,
       due: date ? `${date}T${time || '23:59'}` : undefined,
       weight: kind === 'assignment' && Number.isFinite(parsedWeight) ? parsedWeight : undefined,
+      // Left out entirely when it cannot be kept, so a saved estimate is never touched.
+      ...(canEstimate ? { estimate: estimate ? Number(estimate) : null } : {}),
     }
     if (existing) updateTask(existing.id, data)
     else addTask(data)
@@ -87,6 +94,20 @@ export function TaskDialog({ id, courseId }: { id?: string; courseId?: string })
           <Label label="Due time (optional)">
             <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={!date} />
           </Label>
+          {canEstimate ? (
+            <Label label="Time needed (optional)">
+              <Select value={estimate} onChange={(e) => setEstimate(e.target.value)}>
+                <option value="">Not set</option>
+                {/* A value saved elsewhere that is not in the list still shows as itself. */}
+                {estimate && !ESTIMATES.some((m) => String(m) === estimate) ? <option value={estimate}>{estimateLabel(Number(estimate))}</option> : null}
+                {ESTIMATES.map((m) => (
+                  <option key={m} value={m}>
+                    {estimateLabel(m)}
+                  </option>
+                ))}
+              </Select>
+            </Label>
+          ) : null}
           {kind === 'assignment' ? (
             <Label label="Worth, percent of grade">
               <Input

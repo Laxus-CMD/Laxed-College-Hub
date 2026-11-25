@@ -11,7 +11,7 @@ import { cleanDoc, docsEqual, KINDS, MAX_NOTE_CHARS, readStores, type Doc } from
 
 const AT = '2026-11-22T03:00:00.000Z'
 const empty: Doc = {
-  profile: { name: 'Juan', isDemo: false, bannerDismissed: false, scale: null, prior: { cgpa: null, units: null } },
+  profile: { name: 'Juan', isDemo: false, bannerDismissed: false, taskMode: null, scale: null, prior: { cgpa: null, units: null } },
   courses: [], sessions: [], tasks: [], notes: [], components: [],
 }
 const course = (id: string, code: string, name = '', extra = {}) => ({ id, code, name, units: 3, color: '#4fd1c5', ...extra })
@@ -207,6 +207,16 @@ describe('merging into the account', () => {
     expect(out.tasks[0]).not.toHaveProperty('courseId')
     expect(out.notes[0]).not.toHaveProperty('sessionDate')
     expect(out.sessions).toEqual([])
+  })
+
+  it('gives a task the account already has an estimate or progress it left empty, and keeps the rest', () => {
+    const account = doc({ tasks: [task('t1', 'Essay', { estimate: null, progress: null }), task('t2', 'Lab', { estimate: 30 })] })
+    const from = doc({ tasks: [task('t1', 'Essay renamed', { estimate: 90, progress: 'started' }), task('t2', 'Lab', { estimate: 120 })] })
+    const m = mergeImport(account, from)
+    expect(m.doc.tasks.find((t) => t.id === 't1')).toMatchObject({ title: 'Essay', estimate: 90, progress: 'started' })
+    expect(m.doc.tasks.find((t) => t.id === 't2')).toMatchObject({ estimate: 30 })
+    expect(m.anything).toBe(true)
+    expect(m.added.tasks).toBe(0)
   })
 
   it('fills in GPA settings only where the account has none', () => {

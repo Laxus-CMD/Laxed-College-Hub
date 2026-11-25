@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/app/App'
 import type { ClassSession, Task } from '@/types'
@@ -49,7 +49,7 @@ describe('the calendar', () => {
     render(<App />)
     expect(screen.getByRole('heading', { level: 1, name: 'Schedule' })).toBeInTheDocument()
     expect(toolbarTitle()).toBe('Nov 23 – 29, 2026')
-    expect(screen.getByRole('button', { name: 'Essay draft, due' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Essay draft, due [A-Z]/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Quiz 4, due Thursday, November 26 at 10:00 AM' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^FNDSTAT, (Monday|Thursday)/ })).toHaveLength(2)
     // Tasks without a date stay on the To-Do List only.
@@ -92,7 +92,7 @@ describe('the calendar', () => {
     useTaskStore.setState({ tasks: [task('sat', 'Saturday essay', '2026-11-28T23:59'), task('sun', 'Sunday quiz', '2026-11-29T09:00')] })
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: '2 on weekends' }))
-    expect(screen.getByRole('button', { name: 'Saturday essay, due' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Saturday essay, due [A-Z]/ })).toBeInTheDocument()
     expect(within(display()).getByRole('switch', { name: 'Weekends' })).toBeChecked()
     expect(screen.queryByRole('button', { name: /on weekends/ })).not.toBeInTheDocument()
   })
@@ -112,15 +112,15 @@ describe('the calendar', () => {
     display()
     toggle('Exams')
     expect(screen.queryByRole('button', { name: /^Midterm/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Essay, due' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Essay, due [A-Z]/ })).toBeInTheDocument()
     toggle('Assignments')
-    expect(screen.queryByRole('button', { name: 'Essay, due' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Essay, due [A-Z]/ })).not.toBeInTheDocument()
     toggle('Classes')
     expect(screen.queryByRole('button', { name: /^FNDSTAT, / })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Old quiz, due, done' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Old quiz, due [A-Z][^,]*, [A-Z][a-z]+ [0-9]+, done$/ })).toBeInTheDocument()
     toggle('Completed tasks', 'switch')
     expect(screen.queryByRole('button', { name: /^Old quiz/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Groceries, due' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Groceries, due [A-Z]/ })).toBeInTheDocument()
     // Hiding never changes the tasks themselves.
     expect(tasks()).toHaveLength(4)
   })
@@ -129,7 +129,7 @@ describe('the calendar', () => {
     useTaskStore.setState({ tasks: [task('mid', 'Midterm', '2026-11-25T10:00', { category: 'exam' }), task('fin', 'Final', '2026-11-27', { category: 'exam' })] })
     render(<App />)
     expect(screen.getByRole('button', { name: 'Midterm, exam Wednesday, November 25 at 10:00 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Final, exam' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Final, exam [A-Z]/ })).toBeInTheDocument()
   })
 })
 
@@ -169,7 +169,7 @@ describe('the calendar and the To-Do List are one list', () => {
     fireEvent.change(within(pop('New task')).getByRole('textbox', { name: 'Task name' }), { target: { value: 'Read chapter 7' } })
     fireEvent.click(within(pop('New task')).getByRole('button', { name: 'Add task' }))
     expect(tasks().find((t) => t.title === 'Read chapter 7')).toMatchObject({ kind: 'todo', due: '2026-11-25T23:59', done: false, source: 'manual' })
-    expect(screen.getByRole('button', { name: 'Read chapter 7, due' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Read chapter 7, due [A-Z]/ })).toBeInTheDocument()
   })
 
   it('adds a task at the time picked on the grid, or a class there instead', () => {
@@ -182,9 +182,29 @@ describe('the calendar and the To-Do List are one list', () => {
     expect(screen.getByRole('dialog', { name: 'Add class' })).toBeInTheDocument()
   })
 
+  it('keeps the keyboard on a task after its new date moves it to another day', async () => {
+    render(<App />)
+    const opener = screen.getByRole('button', { name: /^Essay draft, due Tuesday, November 24/ })
+    opener.focus()
+    fireEvent.click(opener)
+    const details = pop('Task')
+    fireEvent.change(within(details).getByLabelText('Due'), { target: { value: '2026-11-26' } })
+    // The button that opened it is gone; the task now sits on Thursday.
+    expect(opener.isConnected).toBe(false)
+    fireEvent.keyDown(details, { key: 'Escape' })
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Essay draft, due Thursday, November 26/ })))
+  })
+
+  it('names the day of every task in the deadline row, and what "more" opens', () => {
+    useTaskStore.setState({ tasks: ['A', 'B', 'C', 'D', 'E'].map((t, i) => task(`m${i}`, `Task ${t}`, '2026-11-26')) })
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'Task A, due Thursday, November 26' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^\d+ more due Thursday, November 26$/ })).toBeInTheDocument()
+  })
+
   it('completes, renames, reschedules and deletes the same task the To-Do List shows', () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Essay draft, due' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Essay draft, due [A-Z]/ }))
     const details = pop('Task')
     fireEvent.click(within(details).getByRole('checkbox', { name: 'Mark done: Essay draft' }))
     expect(tasks().find((t) => t.id === 'essay')?.done).toBe(true)
@@ -209,7 +229,7 @@ describe('the calendar and the To-Do List are one list', () => {
   it('drops the grade weight when an assignment becomes a to-do, as the task dialog does', () => {
     useTaskStore.setState({ tasks: [task('essay', 'Essay draft', '2026-11-24T23:59', { weight: 20 })] })
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Essay draft, due' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Essay draft, due [A-Z]/ }))
     fireEvent.change(within(pop('Task')).getByLabelText('Type'), { target: { value: 'todo' } })
     const essay = tasks().find((t) => t.id === 'essay')!
     expect(essay).toMatchObject({ kind: 'todo', category: null })
@@ -219,7 +239,7 @@ describe('the calendar and the To-Do List are one list', () => {
   it('shows tasks added or changed on the To-Do List straight away', () => {
     render(<App />)
     act(() => useTaskStore.getState().addTask({ kind: 'assignment', title: 'Lab report', due: '2026-11-27T23:59' }))
-    expect(screen.getByRole('button', { name: 'Lab report, due' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Lab report, due [A-Z]/ })).toBeInTheDocument()
     act(() => useTaskStore.getState().toggleTask('quiz'))
     expect(screen.getByRole('button', { name: /^Quiz 4, due .*, done$/ })).toBeInTheDocument()
     act(() => useTaskStore.getState().removeTask('quiz'))

@@ -1,5 +1,5 @@
 import express, { Router } from 'express'
-import { loadQuery, saveBody } from '../dataSchema.ts'
+import { FEATURES, loadQuery, saveBody } from '../dataSchema.ts'
 import type { Db } from '../db.ts'
 import { HttpError, parse, requireAuth } from '../http.ts'
 import { RateLimiter } from '../rateLimit.ts'
@@ -32,11 +32,11 @@ export function dataRoutes(db: Db, limits: DataLimits = DEFAULT_DATA_LIMITS): Ro
     await limit(loads, userId)
     const { since } = parse(loadQuery, req.query)
     if (since !== undefined && since === (await currentRevision(db, userId))) {
-      res.json({ accountId: userId, revision: since, data: null })
+      res.json({ accountId: userId, revision: since, data: null, features: FEATURES })
       return
     }
     const data = await loadData(db, userId)
-    res.json({ accountId: userId, revision: data.revision, data })
+    res.json({ accountId: userId, revision: data.revision, data, features: FEATURES })
   })
 
   // The big body limit comes after the sign-in and rate checks, so strangers cannot use it.

@@ -1,3 +1,4 @@
+import { API_FEATURES, type ApiFeature } from '@/types'
 import { KINDS, isEmpty, type Changes } from '@/sync/doc'
 
 /**
@@ -28,6 +29,12 @@ export interface Pending {
   revision: number
   changes: Changes
   savedAt: string
+  /**
+   * What the account's API listed when these changes were made. A task field it did not list was
+   * stripped from what this tab loaded, so its null here is not the student's: it is held back
+   * when the entry is sent again. Missing on entries from before 1.10.0, which never hold such fields.
+   */
+  features?: ApiFeature[]
 }
 
 /** Where unconfirmed changes are: nowhere, on this device, or only in this tab's memory. */
@@ -75,7 +82,10 @@ function parse(text: string | null): Pending | null {
     typeof c?.remove === 'object' &&
     KINDS.every((k) => isList(c.upsert?.[k]) && Array.isArray(c.remove?.[k]) && c.remove[k].every((id) => typeof id === 'string')) &&
     (c.profile === undefined || (typeof c.profile === 'object' && c.profile !== null))
-  return ok ? (p as Pending) : null
+  if (!ok) return null
+  // Only feature names this app knows; anything else counts as not listed.
+  const features = Array.isArray(p.features) ? API_FEATURES.filter((f) => (p.features as unknown[]).includes(f)) : undefined
+  return { ...(p as Pending), features }
 }
 
 /**
