@@ -1,6 +1,6 @@
 # Tasks workspace
 
-The Tasks page offers five workspace modes. Each is a way of working, not a different chart
+The Tasks page offers four workspace modes. Each is a way of working, not a different chart
 of the same list. They all read and write the one task store (`useTaskStore`), so a change in
 any mode shows at once in the others, on the Schedule calendar and in the dashboard widgets.
 
@@ -8,8 +8,7 @@ any mode shows at once in the others, on the Schedule calendar and in the dashbo
 | --- | --- | --- |
 | Classic | Seeing everything that is due, grouped by urgency, and ticking it off | 1 (done) |
 | Flow | Work that takes several sittings: Not started, In progress, Completed | 2 (done) |
-| Focus | Working on one task: its details, steps, notes, the Pomodoro timer, what is next | 3 |
-| Workload | Seeing which days are heavy, by course, before they arrive | 4 |
+| Workload | Seeing which days are heavy, by course, before they arrive | 4 (done) |
 | Between Classes | Fitting tasks into the gaps in today's timetable, around reserved time | 5 |
 
 ## Architecture
@@ -38,11 +37,13 @@ fails if they differ). Each new field gets a database CHECK as well as a zod rul
 | --- | --- | --- | --- |
 | 1 | `student_profiles.task_mode` (`taskMode` in the profile) | 008 | Synced with the account; guests keep it in their local settings. Null means Classic. |
 | 2 | `tasks.progress`: text, null or `'started'` (a CHECK, so another stage can be added) | 009 | In progress means not done and started. `done` stays the one record of completion, so the calendar, dashboard and older apps need no change. Completing a task keeps `progress`, so un-completing it (here or in an older app) returns it to In progress, where it was. Order inside a column follows urgency; no manual ranking is stored. |
-| 3 | `tasks.steps` (jsonb array, at most 50 steps of `{ id, title, done }`; CHECK `jsonb_typeof = 'array'` and length, strict zod) | 010 | Counted in the account's size quota. The list saves as a whole, last save wins, like a task's title: ticking a step on one device while adding one on another keeps only the later save. Acceptable for a personal checklist; a `task_steps` table is the upgrade path if that proves wrong. The Pomodoro timer stays per browser; Focus only remembers which task it is timing, in the browser. Related notes are the course's notes. There is no resources model, so Focus shows the course details that exist (professor, email, office hours) and makes none up. |
-| 4 | `tasks.estimate` (integer minutes, 5 to 1440, CHECK and `.int()`) | 011 | Optional. With no estimate, Workload counts tasks. It never guesses an estimate. |
-| 5 | Reserved time (breaks, personal time) | 012 | A new record kind (table `reserved_times`, `(user_id, id)` key, cascade with the profile), synced like classes: days, start, end, label, optional term dates with the same keep-if-missing rule. Free windows come from the timetable (`meetsOn`, `freePeriods`) minus reserved time. A new kind touches every hard-coded kind list: server `KINDS`, `TABLES`, LOAD, `QUOTAS` and quota checks; `diff` and `notYetApplied`; `mergeImport` counts and `withoutUntouchedSample`; `readDeviceDoc`/`clearDeviceData` and a new persisted guest store; backups and pending-change checks. Decide then whether Clear data, the sample data and Undo include it. |
+| 4 | `tasks.estimate` (integer minutes, 5 to 1440, CHECK and `.int()`; feature `estimate`) | 010 | Optional, picked from a short list in the task dialog or on Workload's day list, shown only where the API lists `estimate`. With no estimate, Workload counts tasks; time is offered only once a task in view has one, and always says how many of the tasks it covers. It never guesses an estimate. |
+| 5 | Reserved time (breaks, personal time) | 011 | A new record kind (table `reserved_times`, `(user_id, id)` key, cascade with the profile), synced like classes: days, start, end, label, optional term dates with the same keep-if-missing rule. Free windows come from the timetable (`meetsOn`, `freePeriods`) minus reserved time. A new kind touches every hard-coded kind list: server `KINDS`, `TABLES`, LOAD, `QUOTAS` and quota checks; `diff` and `notYetApplied`; `mergeImport` counts and `withoutUntouchedSample`; `readDeviceDoc`/`clearDeviceData` and a new persisted guest store; backups and pending-change checks. Decide then whether Clear data, the sample data and Undo include it. |
 
-Migrations 009 to 012 may be combined into fewer files if those phases ship in one release.
+Migrations 009 to 011 may be combined into fewer files if those phases ship in one release.
+
+Phase 3 (Focus: one task with its steps, notes and the Pomodoro timer) was dropped on 2026-11-25 before
+release, along with its `tasks.steps` field and its mode id.
 
 ## Deploy order
 

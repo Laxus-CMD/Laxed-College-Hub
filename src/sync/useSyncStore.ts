@@ -34,3 +34,4 @@ export const useSyncStore = create<SyncState>()(() => CLOSED)
  * for an account only once its API has said so. Hide what this is false for.
  */
 export const canStore = (s: Pick<SyncState, 'accountId' | 'features'>, feature: ApiFeature): boolean => s.accountId === null || s.features.includes(feature)
+export const useCanStore = (feature: ApiFeature): boolean => useSyncStore((s) => canStore(s, feature))

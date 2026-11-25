@@ -11,10 +11,10 @@ import { z } from 'zod'
  * talks to cannot keep, so an app deployed before its API never loses data. Must match
  * API_FEATURES in src/types.
  */
-export const FEATURES = ['taskMode', 'progress'] as const
+export const FEATURES = ['taskMode', 'progress', 'estimate'] as const
 
 /** The Tasks workspace modes. Must match TASK_MODES in src/types and the CHECK in migration 008. */
-export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as const
+export const TASK_MODES = ['classic', 'flow', 'workload', 'between'] as const
 
 /**
  * Fields an older app leaves out of a record, as [field, column]. A record without one keeps
@@ -22,7 +22,7 @@ export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as
  */
 export const KEEP_IF_MISSING = {
   sessions: [['startsOn', 'starts_on'], ['endsOn', 'ends_on']],
-  tasks: [['category', 'category'], ['progress', 'progress']],
+  tasks: [['category', 'category'], ['progress', 'progress'], ['estimate', 'estimate']],
   // Handled by keepTotals in studentData.ts, which also defaults it; listed so the contract test covers it.
   components: [['totalScore', 'total_score']],
 } as const
@@ -101,6 +101,8 @@ const task = z.object({
   category: z.enum(['exam']).nullable().optional(),
   /** Missing keeps what is saved (apps before 1.10.0 do not know it); null means not started. */
   progress: z.enum(['started']).nullable().optional(),
+  /** Expected minutes of work. Missing keeps what is saved (apps before 1.10.0); null means none given. */
+  estimate: z.number().int().min(5).max(1440).nullable().optional(),
 })
 
 const note = z

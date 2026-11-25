@@ -59,6 +59,9 @@ interface LoadResponse {
  * refuse a profile field (blocking every save) or drop a task field. Only the request is trimmed:
  * the engine still counts the whole change as sent, so it is not resent forever.
  */
+/** Task fields an API stores only once it lists them, named as the feature. */
+const TASK_FIELDS = ['progress', 'estimate'] as const satisfies readonly ApiFeature[]
+
 function forApi(changes: Changes): Changes {
   const { features } = useSyncStore.getState()
   let out = changes
@@ -66,8 +69,10 @@ function forApi(changes: Changes): Changes {
     const { taskMode: _t, ...profile } = out.profile
     out = { ...out, profile: Object.keys(profile).length ? profile : undefined }
   }
-  if (!features.includes('progress') && out.upsert.tasks.some((t) => 'progress' in t)) {
-    out = { ...out, upsert: { ...out.upsert, tasks: out.upsert.tasks.map(({ progress: _p, ...t }) => t) } }
+  const unlisted = TASK_FIELDS.filter((f) => !features.includes(f))
+  if (unlisted.length && out.upsert.tasks.some((t) => unlisted.some((f) => f in t))) {
+    const trim = (t: object) => Object.fromEntries(Object.entries(t).filter(([k]) => !(unlisted as string[]).includes(k)))
+    out = { ...out, upsert: { ...out.upsert, tasks: out.upsert.tasks.map(trim) as Changes['upsert']['tasks'] } }
   }
   return out
 }

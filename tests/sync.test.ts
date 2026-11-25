@@ -385,13 +385,14 @@ describe('what the API can store', () => {
       expect(useSyncStore.getState()).toMatchObject({ phase: 'ready', features: [] })
       // Nothing the API did not list is sent, and the save is not stuck on it.
       useSettingsStore.getState().setTaskMode('flow')
-      useTaskStore.getState().addTask({ kind: 'todo', title: 'Started elsewhere', progress: 'started' })
+      useTaskStore.getState().addTask({ kind: 'todo', title: 'Started elsewhere', progress: 'started', estimate: 60 })
       expect(await e.flush()).toBe(true)
       expect(status()).toBe('saved')
       const saved = await stored()
       expect(saved.profile.taskMode).toBeNull()
       expect(saved.tasks).toMatchObject([{ title: 'Started elsewhere' }])
       expect(saved.tasks[0]).not.toHaveProperty('progress')
+      expect(saved.tasks[0]).not.toHaveProperty('estimate')
       expect(e.hasUnsaved()).toBe(false)
     } finally {
       spy.mockRestore()

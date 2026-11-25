@@ -9,6 +9,8 @@ import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useSyncStore, CLOSED } from '@/sync/useSyncStore'
 import { useTaskMode } from './workspace/useTaskMode'
+import { TaskDialog } from './TaskDialog'
+import WorkloadMode from './workload/WorkloadMode'
 import { CLASSIC_KEY } from './classic/collapse'
 
 // Tuesday, November 24 2026, 8:00.
@@ -165,12 +167,13 @@ describe('choosing a mode', () => {
     expect(screen.getByRole('radio', { name: 'Flow' })).toHaveFocus()
   })
 
-  it('offers only Classic, and no choice, while the account API cannot keep them', () => {
+  it('offers no Flow, and no choice of mode, while the account API cannot keep them', () => {
     useSettingsStore.setState({ taskMode: 'flow' })
     useSyncStore.setState({ accountId: 'a1', features: [] })
     const { result, rerender } = renderHook(() => useTaskMode())
     expect(result.current).toMatchObject({ mode: 'classic', canChoose: false })
-    expect(result.current.modes.map((m) => m.id)).toEqual(['classic'])
+    // Workload stores nothing new itself, so it is not held back.
+    expect(result.current.modes.map((m) => m.id)).toEqual(['classic', 'workload'])
     act(() => useSyncStore.setState({ features: ['taskMode', 'progress'] }))
     rerender()
     expect(result.current).toMatchObject({ mode: 'flow', canChoose: true })
@@ -263,5 +266,85 @@ describe('Classic and Flow together', () => {
     useTaskStore.getState().updateTask('quiz', { progress: 'started' })
     render(<App />)
     expect(group('This week')).toHaveTextContent('In progress')
+  })
+})
+
+describe('Workload', () => {
+  const open = async () => {
+    useSettingsStore.setState({ taskMode: 'workload' })
+    render(<App />)
+    await screen.findByRole('region', { name: 'Due each day' })
+  }
+
+  it('counts what is due each day, and says what it leaves out', async () => {
+    await open()
+    expect(screen.getByText(/due in the next 14 days/).closest('p')).toHaveTextContent('2 open tasks due in the next 14 days. 1 task overdue.')
+    expect(screen.getByRole('button', { name: /^Tuesday, November 24: 1 task/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Thursday, November 26: 1 task \(FNDSTAT\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Friday, November 27: nothing due/ })).toBeInTheDocument()
+  })
+
+  it('shows the tasks of the day picked on the chart', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: /^Thursday, November 26/ }))
+    expect(screen.getByRole('region', { name: 'Thursday, November 26' })).toHaveTextContent('Quiz 4')
+  })
+
+  it('offers time only once a student gives an estimate, and never makes one up', async () => {
+    await open()
+    expect(screen.queryByRole('tab', { name: 'Time needed' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Thursday, November 26/ }))
+    fireEvent.change(screen.getByLabelText('Time needed for Quiz 4'), { target: { value: '90' } })
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'quiz')?.estimate).toBe(90)
+    fireEvent.click(screen.getByRole('tab', { name: 'Time needed' }))
+    // Only the estimated task adds time; the other is counted, not guessed.
+    expect(screen.getByRole('heading', { name: /Estimated time due each day/ })).toHaveTextContent('only tasks with an estimate')
+    expect(screen.getByText(/due in the next 14 days/).closest('p')).toHaveTextContent('1 h 30 min estimated for 1 of them')
+  })
+
+  it('shows the same numbers as a table', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Show as table' }))
+    const row = screen.getByRole('rowheader', { name: 'Thursday, November 26' }).closest('tr')!
+    expect(within(row).getAllByRole('cell').map((c) => c.textContent)).toEqual(['1', '0', '—'])
+  })
+
+  it('hides estimates while the account API cannot keep them', () => {
+    useSyncStore.setState({ accountId: 'a1', features: ['taskMode'] })
+    const { result } = renderHook(() => useTaskMode())
+    expect(result.current.modes.map((m) => m.id)).toEqual(['classic', 'workload'])
+    render(<WorkloadMode />)
+    fireEvent.click(screen.getByRole('button', { name: /^Thursday, November 26/ }))
+    expect(screen.getByRole('region', { name: 'Thursday, November 26' })).toHaveTextContent('Quiz 4')
+    expect(screen.queryByLabelText('Time needed for Quiz 4')).not.toBeInTheDocument()
+  })
+
+  it('picks a day from the table too', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Show as table' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Thursday, November 26' }))
+    expect(screen.getByRole('button', { name: 'Thursday, November 26' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('region', { name: 'Thursday, November 26' })).toHaveTextContent('Quiz 4')
+  })
+})
+
+describe('the task dialog', () => {
+  it('saves a time estimate the student picks', () => {
+    window.location.hash = '#assignments'
+    render(<App />)
+    act(() => useUiStore.getState().openDialog({ type: 'task', id: 'essay' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit task' })
+    fireEvent.change(within(dialog).getByLabelText('Time needed (optional)'), { target: { value: '45' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save task' }))
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'essay')?.estimate).toBe(45)
+  })
+
+  it('leaves a saved estimate alone where it cannot be kept', () => {
+    useTaskStore.getState().updateTask('essay', { estimate: 60 })
+    useSyncStore.setState({ accountId: 'a1', features: [] })
+    render(<TaskDialog id="essay" />)
+    expect(screen.queryByLabelText('Time needed (optional)')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save task' }))
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'essay')?.estimate).toBe(60)
   })
 })

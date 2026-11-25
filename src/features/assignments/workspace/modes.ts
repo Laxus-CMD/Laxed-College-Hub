@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
-import { Columns3, ListChecks, type LucideIcon } from 'lucide-react'
+import { ChartColumnStacked, Columns3, ListChecks, type LucideIcon } from 'lucide-react'
 import type { ApiFeature, TaskMode } from '@/types'
 import ClassicMode from '@/features/assignments/classic/ClassicMode'
 
@@ -34,6 +34,13 @@ export const MODES: ModeDef[] = [
     icon: Columns3,
     needs: 'progress',
     View: lazy(() => import('@/features/assignments/flow/FlowMode')),
+  },
+  {
+    id: 'workload',
+    label: 'Workload',
+    purpose: 'See which days and courses ask the most, before they arrive',
+    icon: ChartColumnStacked,
+    View: lazy(() => import('@/features/assignments/workload/WorkloadMode')),
   },
 ]
 

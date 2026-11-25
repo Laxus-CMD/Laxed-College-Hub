@@ -129,7 +129,7 @@ describe('loading and saving', () => {
   it('answers ?since with nothing when nothing changed', async () => {
     const s = await student()
     await s.save(full)
-    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null, features: ['taskMode', 'progress'] })
+    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null, features: ['taskMode', 'progress', 'estimate'] })
     expect((await call(s.cookie, 'GET', '/data?since=0')).json.data.courses).toHaveLength(2)
     expect((await call(s.cookie, 'GET', '/data?since=abc')).status).toBe(400)
   })
@@ -555,8 +555,8 @@ describe('the Tasks workspace mode', () => {
 describe('task progress (Flow)', () => {
   it('is reported as something this API can store, on every load', async () => {
     const s = await student()
-    expect((await call(s.cookie, 'GET', '/data')).json.features).toEqual(['taskMode', 'progress'])
-    expect((await call(s.cookie, 'GET', '/data?since=0')).json).toMatchObject({ data: null, features: ['taskMode', 'progress'] })
+    expect((await call(s.cookie, 'GET', '/data')).json.features).toEqual(['taskMode', 'progress', 'estimate'])
+    expect((await call(s.cookie, 'GET', '/data?since=0')).json).toMatchObject({ data: null, features: ['taskMode', 'progress', 'estimate'] })
   })
 
   it('stores it, keeps it when an older app saves the task without knowing, and clears it on null', async () => {
@@ -575,6 +575,28 @@ describe('task progress (Flow)', () => {
     const s = await student()
     const res = await s.send({ upsert: { tasks: [task('odd', { progress: 'blocked' })] } })
     expect(res.status).toBe(400)
+    expect((await s.load()).tasks).toEqual([])
+  })
+})
+
+describe('time estimates (Workload)', () => {
+  it('stores whole minutes, keeps them when an older app saves the task without knowing, and clears on null', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('essay', { estimate: 90 })] } })
+    expect((await s.load()).tasks).toEqual([task('essay', { estimate: 90 })])
+    const res = await s.send({ upsert: { tasks: [task('essay', { done: true })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    expect(res.json.data.tasks[0]).toMatchObject({ id: 'essay', done: true, estimate: 90 })
+    await s.save({ upsert: { tasks: [task('essay', { estimate: null })] } })
+    expect((await s.load()).tasks).toEqual([task('essay')])
+  })
+
+  it('refuses an estimate that is not whole minutes from 5 to 1440, and saves nothing', async () => {
+    const s = await student()
+    for (const estimate of [0, 4, 1441, 30.5, '60']) {
+      const res = await s.send({ upsert: { tasks: [task('odd', { estimate })] } })
+      expect(res.status, String(estimate)).toBe(400)
+    }
     expect((await s.load()).tasks).toEqual([])
   })
 })
