@@ -2,6 +2,7 @@ import { Card, CardHeader, EmptyNote } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Chip'
 import { formatClock, toMinutes, WEEKDAY_NAMES } from '@/lib/time'
 import { cn } from '@/lib/cn'
+import { meetsOn } from '@/features/schedule/scheduleUtils'
 import { useCourseMap } from '@/store/selectors'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useUiStore } from '@/store/useUiStore'
@@ -13,7 +14,7 @@ export function TodayCard({ now }: { now: Date }) {
   const openDrawer = useUiStore((s) => s.openDrawer)
   const nowMin = now.getHours() * 60 + now.getMinutes()
   const today = sessions
-    .filter((s) => s.days.includes(now.getDay() as 0))
+    .filter((s) => meetsOn(s, now))
     .sort((a, b) => toMinutes(a.start) - toMinutes(b.start))
 
   return (

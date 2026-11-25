@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import type { TaskKind } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Choice, ChoiceGroup, Input, Label, Select } from '@/components/ui/Field'
 import { Dialog } from '@/components/ui/Dialog'
+import { fieldsOf, TASK_TYPES, typeOf, type TaskType } from '@/features/assignments/taskType'
 import { deleteTask } from '@/store/actions'
 import { useScheduleStore } from '@/store/useScheduleStore'
 import { useTaskStore } from '@/store/useTaskStore'
@@ -24,7 +24,8 @@ export function TaskDialog({ id, courseId }: { id?: string; courseId?: string })
 
   const initialDue = splitDue(existing?.due)
   const [title, setTitle] = useState(existing?.title ?? '')
-  const [kind, setKind] = useState<TaskKind>(existing?.kind ?? 'assignment')
+  const [type, setType] = useState<TaskType>(existing ? typeOf(existing) : 'assignment')
+  const kind = fieldsOf(type).kind
   const [course, setCourse] = useState(existing?.courseId ?? courseId ?? '')
   const [date, setDate] = useState(initialDue.date)
   const [time, setTime] = useState(initialDue.time)
@@ -36,7 +37,7 @@ export function TaskDialog({ id, courseId }: { id?: string; courseId?: string })
     if (!trimmed) return
     const parsedWeight = weight === '' ? undefined : Math.max(0, Math.min(100, Number(weight)))
     const data = {
-      kind,
+      ...fieldsOf(type),
       title: trimmed,
       courseId: course || undefined,
       due: date ? `${date}T${time || '23:59'}` : undefined,
@@ -61,12 +62,11 @@ export function TaskDialog({ id, courseId }: { id?: string; courseId?: string })
           />
         </Label>
         <ChoiceGroup legend="Type">
-          <Choice type="radio" name="kind" value="assignment" checked={kind === 'assignment'} onChange={() => setKind('assignment')}>
-            Assignment
-          </Choice>
-          <Choice type="radio" name="kind" value="todo" checked={kind === 'todo'} onChange={() => setKind('todo')}>
-            To-do
-          </Choice>
+          {TASK_TYPES.map((t) => (
+            <Choice key={t.id} type="radio" name="kind" value={t.id} checked={type === t.id} onChange={() => setType(t.id)}>
+              {t.label}
+            </Choice>
+          ))}
         </ChoiceGroup>
         <div className="grid gap-3 sm:grid-cols-2">
           <Label label="Course">

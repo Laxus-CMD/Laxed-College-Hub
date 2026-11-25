@@ -1,5 +1,22 @@
 import type { ClassSession, Weekday } from '@/types'
-import { toMinutes } from '@/lib/time'
+import { addDays, dateKey, parseDateKey, toMinutes } from '@/lib/time'
+
+/** Whether the class's term covers this calendar day. Classes without term dates always do. */
+export function inTerm(session: ClassSession, day: Date): boolean {
+  const key = dateKey(day)
+  return (!session.startsOn || session.startsOn <= key) && (!session.endsOn || key <= session.endsOn)
+}
+
+/** Whether the class meets on this calendar day: the right weekday, within its term. */
+export function meetsOn(session: ClassSession, day: Date): boolean {
+  return session.days.includes(day.getDay() as Weekday) && inTerm(session, day)
+}
+
+/** Classes still running: not ended before `today`. Upcoming terms count. */
+export function currentSessions(sessions: ClassSession[], today: Date): ClassSession[] {
+  const key = dateKey(today)
+  return sessions.filter((s) => !s.endsOn || s.endsOn >= key)
+}
 
 export interface DayBlock {
   session: ClassSession
@@ -11,10 +28,13 @@ export interface DayBlock {
   lanes: number
 }
 
-/** Sessions that meet on a weekday, laid out so overlapping ones sit side by side. */
-export function layoutDay(sessions: ClassSession[], day: Weekday): DayBlock[] {
+/**
+ * Sessions that meet on a day, laid out so overlapping ones sit side by side. Given a date,
+ * only classes whose term covers it; given a weekday alone, every class meeting that weekday.
+ */
+export function layoutDay(sessions: ClassSession[], day: Weekday | Date): DayBlock[] {
   const items = sessions
-    .filter((s) => s.days.includes(day))
+    .filter((s) => (typeof day === 'number' ? s.days.includes(day) : meetsOn(s, day)))
     .map((session) => ({ session, start: toMinutes(session.start), end: toMinutes(session.end) }))
     .sort((a, b) => a.start - b.start || a.end - b.end)
 
@@ -41,19 +61,25 @@ export function layoutDay(sessions: ClassSession[], day: Weekday): DayBlock[] {
   return blocks
 }
 
-/** Existing sessions that overlap a proposed time on any of the given days. */
+/**
+ * Existing sessions that overlap a proposed time on any of the given days, during the
+ * proposed term. Classes from a term that does not overlap it never conflict.
+ */
 export function findConflicts(
   sessions: ClassSession[],
-  proposed: { days: Weekday[]; start: string; end: string },
+  proposed: { days: Weekday[]; start: string; end: string; startsOn?: string | null; endsOn?: string | null },
   ignoreId?: string,
 ): { session: ClassSession; day: Weekday }[] {
   const s = toMinutes(proposed.start)
   const e = toMinutes(proposed.end)
   if (e <= s) return []
+  const termsOverlap = (other: ClassSession) =>
+    (!proposed.startsOn || !other.endsOn || other.endsOn >= proposed.startsOn) &&
+    (!proposed.endsOn || !other.startsOn || other.startsOn <= proposed.endsOn)
   const hits: { session: ClassSession; day: Weekday }[] = []
   for (const day of proposed.days) {
     for (const session of sessions) {
-      if (session.id === ignoreId || !session.days.includes(day)) continue
+      if (session.id === ignoreId || !session.days.includes(day) || !termsOverlap(session)) continue
       if (toMinutes(session.start) < e && toMinutes(session.end) > s) hits.push({ session, day })
     }
   }
@@ -67,9 +93,12 @@ export function weeklyMinutes(sessions: ClassSession[]): number {
 
 /** The most recent meeting of a session on or before `today`, as a Date at midnight. Null if it never met. */
 export function latestMeetingOnOrBefore(session: ClassSession, today: Date): Date | null {
+  // An ended class: look back from its last day.
+  const last = session.endsOn ? parseDateKey(session.endsOn) : null
+  const from = last && last < today ? last : today
   for (let back = 0; back < 7; back++) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - back)
-    if (session.days.includes(d.getDay() as Weekday)) return d
+    const d = addDays(new Date(from.getFullYear(), from.getMonth(), from.getDate()), -back)
+    if (meetsOn(session, d)) return d
   }
   return null
 }

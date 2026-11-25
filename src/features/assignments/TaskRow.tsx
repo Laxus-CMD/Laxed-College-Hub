@@ -8,6 +8,7 @@ import { dueLabel, type DueTone } from '@/features/assignments/urgency'
 import { deleteTask } from '@/store/actions'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
+import { typeLabel } from '@/features/assignments/taskType'
 
 /** Understated: overdue and due today get color, the rest stay quiet. */
 const TONE: Record<DueTone, string> = {
@@ -36,7 +37,7 @@ export function TaskRow({ task, now, course, full = false }: TaskRowProps) {
   const due = dueLabel(task, now)
 
   const meta = [
-    task.kind === 'assignment' ? 'Assignment' : 'To-do',
+    typeLabel(task),
     task.weight ? `${task.weight}% of grade` : null,
     task.source === 'ics' ? 'From Canvas' : null,
   ]

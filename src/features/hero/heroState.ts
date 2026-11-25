@@ -1,6 +1,7 @@
-import type { ClassSession, HeroState, NextClass, Task, Weekday } from '@/types'
+import type { ClassSession, HeroState, NextClass, Task } from '@/types'
 import { addDays, atMinutes, startOfDay, toMinutes } from '@/lib/time'
 import { urgentTasks } from '@/features/assignments/urgency'
+import { meetsOn } from '@/features/schedule/scheduleUtils'
 
 /** A class this close counts as "between classes". Further out is study mode. */
 export const BETWEEN_WINDOW_MINUTES = 120
@@ -18,7 +19,7 @@ export function occurrenceOn(
   session: ClassSession,
   day: Date,
 ): { start: Date; end: Date } | null {
-  if (!session.days.includes(day.getDay() as Weekday)) return null
+  if (!meetsOn(session, day)) return null
   const d0 = startOfDay(day)
   return {
     start: atMinutes(d0, toMinutes(session.start)),

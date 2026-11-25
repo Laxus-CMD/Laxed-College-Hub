@@ -97,6 +97,48 @@ export function deleteSession(sessionId: string): void {
   toastWithUndo('Class deleted.', before)
 }
 
+/**
+ * Ends the term on `lastDay` ("YYYY-MM-DD"): every class meeting then stops after it, and keeps
+ * its past meetings on the calendar. Classes of a later term are left alone. Returns how many ended.
+ */
+export function endTerm(lastDay: string): number {
+  const { sessions, updateSession } = useScheduleStore.getState()
+  const running = sessions.filter((s) => (!s.endsOn || s.endsOn > lastDay) && (!s.startsOn || s.startsOn <= lastDay))
+  const was = new Map(running.map((s) => [s.id, s.endsOn ?? null]))
+  for (const s of running) updateSession(s.id, { endsOn: lastDay })
+  if (running.length > 0) {
+    useUiStore.getState().showToast({
+      message: `Term ended. ${running.length === 1 ? 'Its class stays' : 'Its classes stay'} on the calendar for the weeks ${running.length === 1 ? 'it' : 'they'} met.`,
+      // Puts back only the end dates this changed, on classes that still exist; anything edited since stays.
+      undo: () => {
+        const { sessions: now, updateSession: update } = useScheduleStore.getState()
+        for (const s of now) if (was.has(s.id) && s.endsOn === lastDay) update(s.id, { endsOn: was.get(s.id) })
+      },
+    })
+  }
+  return running.length
+}
+
+/**
+ * Moves a task to a new due date or time, as a drag on the calendar does. Undo puts back only
+ * that task's previous due value, so anything done in between (another task finished, a note
+ * written) stays as it is. If the task was deleted or moved again meanwhile, Undo leaves it.
+ */
+export function rescheduleTask(taskId: string, due: string, message: string): void {
+  const { tasks, updateTask } = useTaskStore.getState()
+  const task = tasks.find((t) => t.id === taskId)
+  if (!task || task.due === due) return
+  const previous = task.due
+  updateTask(taskId, { due })
+  useUiStore.getState().showToast({
+    message,
+    undo: () => {
+      const now = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+      if (now && now.due === due) useTaskStore.getState().updateTask(taskId, { due: previous })
+    },
+  })
+}
+
 export function deleteTask(taskId: string): void {
   const before = takeSnapshot()
   useTaskStore.getState().removeTask(taskId)

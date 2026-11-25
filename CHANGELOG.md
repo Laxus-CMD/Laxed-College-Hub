@@ -2,6 +2,31 @@
 
 Patch notes for College Hub. Newest first.
 
+## 1.9.0 · 2026-11-24 · Academic calendar
+
+### New
+
+- **Schedule is now a calendar.** Classes and tasks together, by **Week** or **Month**, past and future. Arrows and **Today** sit in one toolbar with the view switch.
+- **Deadlines get their own row.** Tasks due on a day without a set time sit in a row above your classes, which stays in view as you scroll. Tasks with a time appear at that time. Tasks without a date stay on your To-Do List.
+- **Exams.** Mark a task as an exam (in the task form or straight from the calendar). Exams stand out with their own marker and border, and count toward your grade like assignments.
+- **Clear at a glance.** Classes have a quiet tint and a thin line in their course color; assignments, exams and to-dos each have their own marker; finished tasks fade back. Today's column is lightly highlighted, and the hours shown fit your schedule.
+- **Day details.** Click a date to open a panel beside the calendar with that day's classes, what is due, the free time between classes, and any clashes. Tick tasks off right there.
+- **Drag to reschedule.** Drag a task to another day, to the deadline row, or to a time. The To-Do List updates at once, and Undo puts it back. You can still change the date in the task itself.
+- **Details on hover and click.** Hover over a class or task for its full details. Click it for a small panel to edit it, or click an empty spot to add a task, an exam or a class there.
+- **One list, two places.** Add, complete, rename, reschedule or delete a task on the calendar and the To-Do List changes too, and the other way round. Nothing is copied.
+- **Display.** Show or hide classes, assignments, exams, to-dos, finished tasks and weekends. Your choices and view are remembered. If a hidden weekend has something on it, the toolbar says so.
+- **Academic terms.** A class can have a first and last day. **Term** lets you end the current term on the day you choose: its classes stay on the calendar for the weeks they met. A class added after a term ended starts the next day. Classes added before this update meet every week, as before.
+
+### Changed
+
+- The Schedule tab is called **Schedule** (it was Weekly Schedule). Clicking a class shows its details first, with a button for its notes.
+- The Today card and the top of Overview only show classes whose term covers the day.
+- Focus no longer draws a ring around headings and panels that keyboard focus is moved to; every control still shows one.
+
+### For operators
+
+- Migrations `006_class_session_terms.sql` (first and last day of classes) and `007_task_category.sql` (exams) run during the production build. Older apps that save a class or task without these fields keep the saved values.
+
 ## 1.8.0 · 2026-11-24 · Study Launchpad
 
 ### New
