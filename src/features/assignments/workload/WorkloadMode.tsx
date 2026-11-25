@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Course, Task } from '@/types'
 import { cn } from '@/lib/cn'
 import { formatDuration, plural, WEEKDAY_SHORT } from '@/lib/time'
@@ -18,15 +18,24 @@ type Span = 7 | 14 | 28
 const NO_COURSE = 'var(--color-line-strong)'
 /** Height of the bar area: a bar at the top value is exactly this tall, level with the reference line. */
 const BAR_AREA = 144
+/**
+ * Space between course segments: 2px while the segments average at least 3px, none otherwise.
+ * A bar's total height is always exactly its value, whatever its number of courses.
+ */
+const gapFor = (value: number, segments: number, max: number) => ((value / max) * BAR_AREA >= segments * 5 - 2 ? 2 : 0)
+
 /** The scale never shrinks below this, so one task never looks like a full day. */
 const FLOOR: Record<Measure, number> = { tasks: 4, time: 120 }
 
 const longDate = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 const shortDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
+/** Time always says how many of the tasks it covers. */
+const coverage = (load: Load) => (load.estimated === load.tasks ? '' : ` estimated for ${load.estimated} of ${load.tasks}`)
+
 function amount(load: Load, measure: Measure): string {
   if (measure === 'tasks') return plural(load.tasks, 'task')
-  return load.minutes ? formatDuration(load.minutes) : 'No estimates'
+  return load.minutes ? `${formatDuration(load.minutes)}${coverage(load)}` : 'No estimates'
 }
 
 /** "3 tasks, 1 exam" plus what is known about time. Never implies time it does not know. */
@@ -59,6 +68,23 @@ export default function WorkloadMode() {
   // Ranked only when the days differ; a list of equal days says nothing.
   const values = load.days.map((d) => valueOf(d, measure)).filter((v) => v > 0)
   const heavy = values.length > 1 && Math.max(...values) > Math.min(...values) ? heaviestDays(load.days, measure) : []
+  // A task opened from elsewhere (search, the dashboard): its day, when it is in view.
+  const flashId = useUiStore((s) => s.flashTaskId)
+  const openDialog = useUiStore((s) => s.openDialog)
+  const flashDay = flashId ? load.days.find((d) => d.items.some((t) => t.id === flashId)) : undefined
+  const [revealed, setRevealed] = useState<string | null>(null)
+  // Not on any day shown here (done, overdue, undated or further out): open it instead. Decided
+  // once, when the task is first flashed, so a later edit never opens it on its own.
+  // A new object per opening, so the same task opened again opens again.
+  const [toOpen, setToOpen] = useState<{ id: string } | null>(null)
+  if (flashId !== revealed) {
+    setRevealed(flashId)
+    if (flashDay) setSelected(flashDay.key)
+    else if (flashId) setToOpen({ id: flashId })
+  }
+  useEffect(() => {
+    if (toOpen) openDialog({ type: 'task', id: toOpen.id })
+  }, [toOpen, openDialog])
   const day = load.days.find((d) => d.key === selected) ?? heavy[0] ?? load.days[0]!
   const max = Math.max(FLOOR[measure], ...load.days.map((d) => valueOf(d, measure)))
   const rank = (id: string | null) => (id === null ? order.length : order.indexOf(id))
@@ -206,7 +232,7 @@ function Chart({
         {days.map((d, index) => {
           const value = valueOf(d, measure)
           const parts = d.byCourse.filter((c) => valueOf(c, measure) > 0)
-          const label = `${d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${d.tasks ? describe(d) : 'nothing due'}${parts.length > 1 ? ` (${parts.map((c) => `${code(c.courseId)} ${measure === 'tasks' ? c.tasks : estimateShort(c.minutes)}`).join(', ')})` : parts.length === 1 ? ` (${code(parts[0]!.courseId)})` : ''}`
+          const label = `${d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}: ${d.tasks ? describe(d) : 'nothing due'}${parts.length > 1 ? ` (${parts.map((c) => `${code(c.courseId)} ${measure === 'tasks' ? c.tasks : `${estimateShort(c.minutes)}${coverage(c)}`}`).join(', ')})` : parts.length === 1 ? ` (${code(parts[0]!.courseId)})` : ''}`
           return (
             <button
               key={d.key}
@@ -223,14 +249,14 @@ function Chart({
                 A thin bar inside a wide hit area: course segments stacked from the baseline, 2px apart.
                 The gaps come out of the bar's own height, so the top of a bar always reads its true value.
               */}
-              <span className="relative flex w-full max-w-6 flex-col-reverse items-stretch gap-[2px]">
+              <span className="relative flex w-full max-w-6 flex-col-reverse items-stretch" style={{ gap: gapFor(value, parts.length, max) }}>
                 {parts.map((c, i) => {
-                  const room = Math.max(0, (value / max) * BAR_AREA - 2 * (parts.length - 1))
+                  const room = (value / max) * BAR_AREA - gapFor(value, parts.length, max) * (parts.length - 1)
                   return (
                     <i
                       key={c.courseId ?? 'none'}
                       className={cn('block w-full shrink-0', i === parts.length - 1 && 'rounded-t-[4px]')}
-                      style={{ height: `${Math.max(1, (valueOf(c, measure) / value) * room)}px`, background: color(c.courseId) }}
+                      style={{ height: `${(valueOf(c, measure) / value) * room}px`, background: color(c.courseId) }}
                     />
                   )
                 })}
@@ -254,7 +280,7 @@ function Chart({
                     <span className="text-ink">{code(c.courseId)}</span>
                     <span className="tabular-nums">
                       {plural(c.tasks, 'task')}
-                      {c.estimated ? `, ${estimateShort(c.minutes)}` : ''}
+                      {c.estimated ? `, ${estimateShort(c.minutes)}${coverage(c)}` : ''}
                     </span>
                   </span>
                 ))}

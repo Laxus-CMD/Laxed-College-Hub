@@ -364,7 +364,86 @@ describe('saving', () => {
   })
 })
 
+/** Makes the API look like one before 1.10.0 (no features listed) while `on` is true. */
+function olderApi() {
+  const state: { on: boolean; during?: () => void } = { on: true }
+  const real = globalThis.fetch
+  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const res = await real(input, init)
+    if (!String(input).includes('/api/data') || (init?.method ?? 'GET') !== 'GET') return res
+    // Something the student does while the answer is on its way.
+    if (!state.on) {
+      const during = state.during
+      state.during = undefined
+      during?.()
+      return res
+    }
+    const { features: _f, ...body } = await res.json()
+    return new Response(JSON.stringify(body), { status: res.status, headers: res.headers })
+  })
+  cleanups.push(() => spy.mockRestore())
+  return state
+}
+
 describe('what the API can store', () => {
+  it('keeps the saved value when the student edits the task while that reload is on its way', async () => {
+    const a = await signUp()
+    const task = { id: 't-est', kind: 'assignment', title: 'Essay', done: false, source: 'manual', estimate: 90, progress: 'started' }
+    await otherDevice(a, { upsert: { tasks: [task] } })
+    const old = olderApi()
+    const e = await openApp(a)
+    useTaskStore.setState({ tasks: useTaskStore.getState().tasks.map((t) => ({ ...t, estimate: null, progress: null })) })
+    ;(e as any).open_.base = readStores()
+    old.on = false
+    old.during = () => useTaskStore.getState().updateTask('t-est', { title: 'Essay, renamed meanwhile' })
+    ;(e as any).lastChecked = 0
+    await e.recheck()
+    expect(useTaskStore.getState().tasks[0]).toMatchObject({ title: 'Essay, renamed meanwhile', estimate: 90, progress: 'started' })
+    expect(await e.flush()).toBe(true)
+    expect((await stored()).tasks[0]).toMatchObject({ title: 'Essay, renamed meanwhile', estimate: 90, progress: 'started' })
+  })
+
+  it('holds back what the API did not list when a change kept in the browser is sent again', async () => {
+    const a = await signUp()
+    const task = { id: 't-est', kind: 'assignment', title: 'Essay', done: false, source: 'manual', estimate: 90, progress: 'started' }
+    await otherDevice(a, { upsert: { tasks: [task] } })
+    // Made through an API that listed nothing, so the tab held null for both fields.
+    savePending({
+      accountId: a.id,
+      email: a.email,
+      clientId: 'old-tab-xx',
+      revision: 1,
+      changes: {
+        upsert: { courses: [], sessions: [], tasks: [{ ...task, title: 'Essay, renamed offline', estimate: null, progress: null } as any], notes: [], components: [] },
+        remove: { courses: [], sessions: [], tasks: [], notes: [], components: [] },
+      },
+      features: [],
+    })
+    await openApp(a)
+    expect((await stored()).tasks[0]).toMatchObject({ title: 'Essay, renamed offline', estimate: 90, progress: 'started' })
+  })
+
+  it('loads everything again when the API starts storing a field, so the next edit does not clear it', async () => {
+    const a = await signUp()
+    const task = { id: 't-est', kind: 'assignment', title: 'Essay', done: false, source: 'manual', estimate: 90, progress: 'started' }
+    await otherDevice(a, { upsert: { tasks: [task] } })
+    const old = olderApi()
+    const e = await openApp(a)
+    // Through an API that lists nothing, the fields are not in the stores (a rolled-back API strips them).
+    useTaskStore.setState({ tasks: useTaskStore.getState().tasks.map((t) => ({ ...t, estimate: null, progress: null })) })
+    ;(e as any).open_.base = readStores()
+    expect(useSyncStore.getState().features).toEqual([])
+    // The API is upgraded while the tab stays open, with nothing new in the account.
+    old.on = false
+    ;(e as any).lastChecked = 0
+    await e.recheck()
+    expect(useSyncStore.getState().features).toEqual([...API_FEATURES])
+    expect(useTaskStore.getState().tasks[0]).toMatchObject({ estimate: 90, progress: 'started' })
+    useTaskStore.getState().updateTask('t-est', { title: 'Essay, final' })
+    expect(await e.flush()).toBe(true)
+    expect((await stored()).tasks[0]).toMatchObject({ title: 'Essay, final', estimate: 90, progress: 'started' })
+  })
+
   it('learns it with the first load', async () => {
     const a = await signUp()
     await openApp(a)
@@ -782,6 +861,15 @@ describe('importing', () => {
     for (const k of ['courses', 'sessions', 'tasks', 'components'] as const) expect(onServer[k]).toEqual(guest[k])
     expect(onServer.notes.map((n) => n.body).sort()).toEqual(guest.notes.map((n) => n.body).sort())
     expect(mergeImport(readStores(), readDeviceDoc()!).anything).toBe(false)
+  })
+
+  it('keeps the browser copy when the account cannot store some of it yet', async () => {
+    const { e } = await guestThenAccount()
+    const before = readStores()
+    const doc = cleanDoc({ ...before, tasks: [...before.tasks, { id: 'g-est', kind: 'todo', title: 'Started at home', done: false, source: 'manual', progress: 'started', estimate: 60 }] })
+    // As an API before 1.10.0 would report.
+    useSyncStore.setState({ features: [] })
+    expect(await e.addAll(doc)).toEqual({ saved: 'partly', unstored: ['progress', 'estimate'] })
   })
 
   it('takes nothing when the account would be too full, and says why', async () => {

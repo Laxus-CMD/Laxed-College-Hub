@@ -45,7 +45,7 @@ export function ImportOffer() {
   return null
 }
 
-type Step = 'choose' | 'saving' | 'done' | 'pending'
+type Step = 'choose' | 'saving' | 'done' | 'partly' | 'pending'
 
 /** Adds data from this browser, or from a backup file, to the account. */
 export function ImportDialog() {
@@ -57,6 +57,7 @@ export function ImportDialog() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState('')
   const [removeAfter, setRemoveAfter] = useState(true)
+  const [unstored, setUnstored] = useState<string[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
 
   const source = file?.doc ?? device
@@ -78,15 +79,16 @@ export function ImportDialog() {
     setStep('saving')
     setError(null)
     const outcome = await sync.addAll(now.doc)
-    if (outcome !== 'saved' && outcome !== 'pending') {
+    if (typeof outcome === 'object' && 'error' in outcome) {
       setError(outcome.error)
       setStep('choose')
       return
     }
     setResult(summary(now))
-    // Only once the server has it.
+    // Only once the server has all of it: what the account cannot keep yet stays in this browser.
     if (outcome === 'saved' && fromDevice && removeAfter) clearDeviceData()
-    setStep(outcome === 'saved' ? 'done' : 'pending')
+    if (typeof outcome === 'object' && 'unstored' in outcome) setUnstored(outcome.unstored.map((f) => (f === 'progress' ? 'task progress' : 'time estimates')))
+    setStep(outcome === 'saved' ? 'done' : outcome === 'pending' ? 'pending' : 'partly')
   }
 
   const onRemove = () => {
@@ -105,12 +107,16 @@ export function ImportDialog() {
 
   return (
     <Dialog title="Import your data" onClose={onClose}>
-      {step === 'done' || step === 'pending' ? (
+      {step === 'done' || step === 'partly' || step === 'pending' ? (
         <div className="flex flex-col gap-4">
           <p role="status" className="text-sm">
             {step === 'done'
               ? `Added ${result} to your account.${fromDevice && removeAfter ? ' The copy in this browser was removed.' : ''}`
-              : `Added ${result}, but it is not saved yet. Keep this page open: we keep trying. The copy in this browser stays.`}
+              : step === 'partly'
+                ? `Added ${result} to your account. Your account cannot keep ${unstored.join(' or ')} yet, so ${
+                    fromDevice ? 'the copy in this browser stays, and holds them' : 'keep your backup file: it holds them'
+                  }.`
+                : `Added ${result}, but it is not saved yet. Keep this page open: we keep trying. The copy in this browser stays.`}
           </p>
           <div className="flex justify-end">
             <Button variant="primary" onClick={close}>

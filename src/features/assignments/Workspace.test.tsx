@@ -319,6 +319,54 @@ describe('Workload', () => {
     expect(screen.queryByLabelText('Time needed for Quiz 4')).not.toBeInTheDocument()
   })
 
+  it('shows a task opened from search on its day, or opens it when no day shows it', async () => {
+    await open()
+    act(() => useUiStore.getState().flashTask('quiz'))
+    expect(screen.getByRole('region', { name: 'Thursday, November 26' })).toHaveTextContent('Quiz 4')
+    act(() => useUiStore.getState().flashTask(null))
+    act(() => useUiStore.getState().flashTask('old'))
+    expect(useUiStore.getState().dialog).toMatchObject({ type: 'task', id: 'old' })
+  })
+
+  it('never opens a task by itself after showing it on its day', async () => {
+    await open()
+    act(() => useUiStore.getState().flashTask('quiz'))
+    expect(screen.getByRole('region', { name: 'Thursday, November 26' })).toHaveTextContent('Quiz 4')
+    // Finished while still highlighted: it leaves the day, and nothing opens.
+    act(() => useTaskStore.getState().toggleTask('quiz'))
+    expect(useUiStore.getState().dialog).toBeNull()
+  })
+
+  it('says how many tasks a time covers wherever time is shown', async () => {
+    useTaskStore.setState({
+      tasks: [task('x', 'Essay', '2026-11-26', { courseId: 'c-eng102', estimate: 30 }), task('y', 'Reading', '2026-11-26', { courseId: 'c-eng102' }), task('z', 'Quiz', '2026-11-25', { estimate: 15 })],
+    })
+    await open()
+    fireEvent.click(screen.getByRole('tab', { name: 'Time needed' }))
+    expect(screen.getByRole('region', { name: 'Heaviest days' })).toHaveTextContent('30 minutes estimated for 1 of 2')
+  })
+
+  it('draws every bar at the height of its value, however many courses it has', async () => {
+    const courses = ['c-fndstat', 'c-cs101', 'c-math201', 'c-eng102', 'c-phys150']
+    useTaskStore.setState({
+      tasks: [
+        task('huge', 'Thesis draft', '2026-11-24', { estimate: 1440 }),
+        ...courses.map((c, i) => task('m' + i, 'Mixed ' + i, '2026-11-25', { courseId: c, estimate: 5 })),
+        task('one', 'Lab report', '2026-11-26', { courseId: 'c-cs101', estimate: 60 }),
+      ],
+    })
+    await open()
+    fireEvent.click(screen.getByRole('tab', { name: 'Time needed' }))
+    const height = (name: RegExp) => {
+      const segments = ([...screen.getByRole('button', { name }).querySelectorAll('i')] as HTMLElement[]).filter((el) => el.style.height)
+      const gap = parseFloat((segments[0]!.parentElement as HTMLElement).style.gap || '0')
+      return segments.reduce((sum, el) => sum + parseFloat(el.style.height), 0) + gap * (segments.length - 1)
+    }
+    // 25 minutes over five courses must not look taller than 60 minutes in one.
+    expect(height(/^Wednesday, November 25:/)).toBeCloseTo((25 / 1440) * 144, 5)
+    expect(height(/^Wednesday, November 25:/)).toBeLessThan(height(/^Thursday, November 26:/))
+  })
+
   it('picks a day from the table too', async () => {
     await open()
     fireEvent.click(screen.getByRole('button', { name: 'Show as table' }))
