@@ -1,4 +1,4 @@
-import type { ClassSession, Course, GradeComponent, GradeScaleRow, Note, Task, Weekday } from '@/types'
+import { TASK_MODES, type ClassSession, type Course, type GradeComponent, type GradeScaleRow, type Note, type Task, type TaskMode, type Weekday } from '@/types'
 import { DEFAULT_SCALE } from '@/features/grades/gradeMath'
 import { useGradeStore } from '@/store/useGradeStore'
 import { useNoteStore } from '@/store/useNoteStore'
@@ -18,6 +18,8 @@ export interface DocProfile {
   name: string
   isDemo: boolean
   bannerDismissed: boolean
+  /** The Tasks workspace mode. Null until chosen. */
+  taskMode: TaskMode | null
   /** Null means the default scale. */
   scale: GradeScaleRow[] | null
   prior: { cgpa: number | null; units: number | null }
@@ -164,6 +166,7 @@ export function cleanDoc(d: Doc): Doc {
       name: text(d.profile.name, 60),
       isDemo: Boolean(d.profile.isDemo),
       bannerDismissed: Boolean(d.profile.bannerDismissed),
+      taskMode: (TASK_MODES as readonly unknown[]).includes(d.profile.taskMode) ? d.profile.taskMode : null,
       scale: scale && sameScale(scale) ? null : scale,
       prior: { cgpa: numOrNull(d.profile.prior.cgpa), units: numOrNull(d.profile.prior.units) },
     },
@@ -182,9 +185,9 @@ export function cleanDoc(d: Doc): Doc {
 export function readStores(): Doc {
   const { courses, sessions } = useScheduleStore.getState()
   const { components, scale, overrides, targets, prior } = useGradeStore.getState()
-  const { name, isDemo, bannerDismissed } = useSettingsStore.getState()
+  const { name, isDemo, bannerDismissed, taskMode } = useSettingsStore.getState()
   return cleanDoc({
-    profile: { name, isDemo, bannerDismissed, scale, prior },
+    profile: { name, isDemo, bannerDismissed, taskMode, scale, prior },
     courses: courses.map((c) => ({ ...c, override: overrides[c.id], target: targets[c.id] })),
     sessions,
     tasks: useTaskStore.getState().tasks,
@@ -209,7 +212,7 @@ export function writeStores(d: Doc): void {
     targets: pick('target'),
     prior: d.profile.prior,
   })
-  useSettingsStore.setState({ name: d.profile.name, isDemo: d.profile.isDemo, bannerDismissed: d.profile.bannerDismissed })
+  useSettingsStore.setState({ name: d.profile.name, isDemo: d.profile.isDemo, bannerDismissed: d.profile.bannerDismissed, taskMode: d.profile.taskMode })
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +259,7 @@ export function isEmpty(c: Changes): boolean {
  * 1.7.0). A record without one keeps what the document holds, as the server does. Without this, a
  * change saved by an older app and replayed here would clear them once cleaned.
  */
-const KEEP_IF_MISSING: Partial<Record<Kind, readonly string[]>> = {
+export const KEEP_IF_MISSING: Partial<Record<Kind, readonly string[]>> = {
   sessions: ['startsOn', 'endsOn'],
   tasks: ['category'],
   components: ['totalScore'],

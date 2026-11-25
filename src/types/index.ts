@@ -32,6 +32,10 @@ export interface ClassSession {
 
 export type TaskKind = 'assignment' | 'todo'
 
+/** The ways of working on the Tasks page. Every mode works on the same tasks. */
+export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as const
+export type TaskMode = (typeof TASK_MODES)[number]
+
 export interface Task {
   id: string
   kind: TaskKind

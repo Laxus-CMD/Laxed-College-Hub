@@ -29,6 +29,7 @@ export function toDoc(raw: Json): Doc {
       name: typeof profile.name === 'string' ? profile.name : '',
       isDemo: profile.isDemo === true,
       bannerDismissed: profile.bannerDismissed === true,
+      taskMode: profile.taskMode as Doc['profile']['taskMode'],
       scale: Array.isArray(profile.scale) ? (list(profile.scale) as unknown as GradeScaleRow[]) : null,
       prior: { cgpa: numOrNull(prior.cgpa), units: numOrNull(prior.units) },
     },

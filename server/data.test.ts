@@ -80,7 +80,7 @@ const full = {
     notes: [note('n1', { courseId: 'c1', sessionId: 's1', sessionDate: '2026-11-19' })],
     components: [component('g1', 'c1', { score: 88.25 }), component('g2', 'c1')],
   },
-  profile: { name: 'Juan', isDemo: false, bannerDismissed: true, scale: [{ grade: 4, min: 95 }], prior: { cgpa: 3.4, units: 36 } },
+  profile: { name: 'Juan', isDemo: false, bannerDismissed: true, taskMode: 'flow', scale: [{ grade: 4, min: 95 }], prior: { cgpa: 3.4, units: 36 } },
 }
 
 describe('loading and saving', () => {
@@ -88,7 +88,7 @@ describe('loading and saving', () => {
     const s = await student()
     expect(await s.load()).toEqual({
       revision: 0,
-      profile: { name: '', isDemo: false, bannerDismissed: false, scale: null, prior: { cgpa: null, units: null } },
+      profile: { name: '', isDemo: false, bannerDismissed: false, taskMode: null, scale: null, prior: { cgpa: null, units: null } },
       courses: [], sessions: [], tasks: [], notes: [], components: [],
     })
   })
@@ -529,6 +529,26 @@ describe('academic terms', () => {
     const res = await s.send({ upsert: { sessions: [session('bad', 'c1', { endsOn: 'next week' })] } })
     expect(res.status).toBe(400)
     expect((await s.load()).sessions).toEqual([])
+  })
+})
+
+describe('the Tasks workspace mode', () => {
+  it('follows the account, survives a save from an older app, and goes back to Classic on null', async () => {
+    const s = await student()
+    await s.save({ profile: { taskMode: 'workload' } })
+    expect((await s.load()).profile.taskMode).toBe('workload')
+    // Version 1.9.0 renames the student. It has never heard of workspace modes.
+    await s.save({ profile: { name: 'Juan' } })
+    expect((await s.load()).profile).toMatchObject({ name: 'Juan', taskMode: 'workload' })
+    await s.save({ profile: { taskMode: null } })
+    expect((await s.load()).profile.taskMode).toBeNull()
+  })
+
+  it('refuses a mode it does not know, and saves nothing', async () => {
+    const s = await student()
+    const res = await s.send({ profile: { taskMode: 'kanban' } })
+    expect(res.status).toBe(400)
+    expect((await s.load()).profile.taskMode).toBeNull()
   })
 })
 

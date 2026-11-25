@@ -11,7 +11,7 @@ import { cleanDoc, docsEqual, KINDS, MAX_NOTE_CHARS, readStores, type Doc } from
 
 const AT = '2026-11-22T03:00:00.000Z'
 const empty: Doc = {
-  profile: { name: 'Juan', isDemo: false, bannerDismissed: false, scale: null, prior: { cgpa: null, units: null } },
+  profile: { name: 'Juan', isDemo: false, bannerDismissed: false, taskMode: null, scale: null, prior: { cgpa: null, units: null } },
   courses: [], sessions: [], tasks: [], notes: [], components: [],
 }
 const course = (id: string, code: string, name = '', extra = {}) => ({ id, code, name, units: 3, color: '#4fd1c5', ...extra })

@@ -6,6 +6,20 @@ import { z } from 'zod'
  * from saving everything else. Unknown keys inside records are dropped.
  */
 
+/** The Tasks workspace modes. Must match TASK_MODES in src/types and the CHECK in migration 008. */
+export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as const
+
+/**
+ * Fields an older app leaves out of a record, as [field, column]. A record without one keeps
+ * what is saved. Must match KEEP_IF_MISSING in src/sync/doc.ts (tests/contract.test.ts checks).
+ */
+export const KEEP_IF_MISSING = {
+  sessions: [['startsOn', 'starts_on'], ['endsOn', 'ends_on']],
+  tasks: [['category', 'category']],
+  // Handled by keepTotals in studentData.ts, which also defaults it; listed so the contract test covers it.
+  components: [['totalScore', 'total_score']],
+} as const
+
 /** How much one account can hold. */
 export const QUOTAS = {
   courses: 200,
@@ -154,6 +168,8 @@ export const saveBody = z.strictObject({
       name: text(60).optional(),
       isDemo: z.boolean().optional(),
       bannerDismissed: z.boolean().optional(),
+      /** The Tasks workspace mode. Missing keeps what is saved (apps before 1.10.0); null goes back to Classic. */
+      taskMode: z.enum(TASK_MODES).nullable().optional(),
       /** Null goes back to the default scale. */
       scale: z.array(z.object({ grade: number, min: number })).max(20).nullable().optional(),
       prior: z.object({ cgpa: number.nullable(), units: number.nullable() }).optional(),

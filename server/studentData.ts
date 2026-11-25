@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { QUOTAS, type Kind, type SaveBody } from './dataSchema.ts'
+import { KEEP_IF_MISSING, QUOTAS, type Kind, type SaveBody } from './dataSchema.ts'
 import type { Db, Queryable } from './db.ts'
 import { HttpError } from './http.ts'
 
@@ -99,6 +99,7 @@ export interface StudentData {
     name: string
     isDemo: boolean
     bannerDismissed: boolean
+    taskMode: string | null
     scale: { grade: number; min: number }[] | null
     prior: { cgpa: number | null; units: number | null }
   }
@@ -114,13 +115,14 @@ interface ProfileRow {
   display_name: string
   is_demo: boolean
   banner_dismissed: boolean
+  task_mode: string | null
   grade_scale: StudentData['profile']['scale']
   prior_cgpa: number | null
   prior_units: number | null
 }
 
 /** One SELECT for everything, so it is one consistent moment and one round trip. */
-const LOAD = `SELECT p.revision, p.display_name, p.is_demo, p.banner_dismissed, p.grade_scale, p.prior_cgpa, p.prior_units,
+const LOAD = `SELECT p.revision, p.display_name, p.is_demo, p.banner_dismissed, p.task_mode, p.grade_scale, p.prior_cgpa, p.prior_units,
 ${KINDS.map((kind) => {
   const { table, columns } = TABLES[kind]
   const fields = columns.map(([key, column]) => `'${key}', ${column}`).join(', ')
@@ -147,6 +149,7 @@ export async function loadData(db: Queryable, userId: string): Promise<StudentDa
       name: p?.display_name ?? '',
       isDemo: p?.is_demo ?? false,
       bannerDismissed: p?.banner_dismissed ?? false,
+      taskMode: p?.task_mode ?? null,
       scale: p?.grade_scale ?? null,
       prior: { cgpa: p?.prior_cgpa ?? null, units: p?.prior_units ?? null },
     },
@@ -244,10 +247,7 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
       return { ...r, courseId: null }
     }
 
-    const sessions_ = await keepMissing(t, userId, 'class_sessions', withCourse(upsert.sessions), [
-      ['startsOn', 'starts_on'],
-      ['endsOn', 'ends_on'],
-    ])
+    const sessions_ = await keepMissing(t, userId, 'class_sessions', withCourse(upsert.sessions), KEEP_IF_MISSING.sessions)
     // Kept dates are something other than what was sent, so the sender gets the saved version back.
     if (sessions_.kept) adjusted = true
     await upsertAll(t, userId, 'sessions', sessions_.list)
@@ -258,7 +258,7 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
 
     const tasks = await withoutDuplicateImports(t, userId, upsert.tasks)
     if (tasks.length !== upsert.tasks.length) adjusted = true
-    const tasks_ = await keepMissing(t, userId, 'tasks', tasks, [['category', 'category']])
+    const tasks_ = await keepMissing(t, userId, 'tasks', tasks, KEEP_IF_MISSING.tasks)
     if (tasks_.kept) adjusted = true
     // A to-do is never an exam. An older app turning an exam into a to-do leaves the category out,
     // so the kept one is dropped here, and the sender gets the saved version back.
@@ -314,7 +314,7 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
     await t.query(
       `UPDATE student_profiles
           SET revision = $2, display_name = $3, is_demo = $4, banner_dismissed = $5, grade_scale = $6::jsonb,
-              prior_cgpa = $7, prior_units = $8, updated_at = now()
+              prior_cgpa = $7, prior_units = $8, task_mode = $9, updated_at = now()
         WHERE user_id = $1`,
       [
         userId,
@@ -325,6 +325,7 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
         scale === null ? null : JSON.stringify(scale),
         prior.cgpa,
         prior.units,
+        next.taskMode === undefined ? profile.task_mode : next.taskMode,
       ],
     )
 

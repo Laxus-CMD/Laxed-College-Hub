@@ -129,12 +129,15 @@ schema_migrations  name PK, applied_at
 
 ```
 student_profiles   user_id PK → users ON DELETE CASCADE, revision, display_name, is_demo,
-                   banner_dismissed, grade_scale jsonb, prior_cgpa, prior_units
+                   banner_dismissed, grade_scale jsonb, prior_cgpa, prior_units,
+                   task_mode (008; the Tasks workspace mode, null means Classic; a save that leaves it out keeps it)
 courses            (user_id, id) PK, code, name, units, color, professor fields,
                    grade_override, grade_target
-class_sessions     (user_id, id) PK, course (cascade), days, start_time, end_time, room, building
+class_sessions     (user_id, id) PK, course (cascade), days, start_time, end_time, room, building,
+                   starts_on, ends_on (006; term dates; a save that leaves them out keeps them)
 tasks              (user_id, id) PK, course (set null), kind, title, due, done, weight, source,
-                   external_id (unique per student)
+                   external_id (unique per student),
+                   category (007; 'exam' or null, always null on a to-do; a save that leaves it out keeps it)
 notes              (user_id, id) PK, course and class (set null), title, body, session_date,
                    created_at, updated_at, text_revision, text_client
 grade_components   (user_id, id) PK, course (cascade), name, weight, score,
