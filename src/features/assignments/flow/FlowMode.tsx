@@ -26,6 +26,9 @@ import { useUiStore } from '@/store/useUiStore'
 
 /** Completed work grows without end; the board shows the most recent until asked. */
 const COMPLETED_SHOWN = 12
+/** Not started can hold the whole term; the most pressing come first. */
+const WAITING_SHOWN = 40
+const LIMIT: Partial<Record<Stage, number>> = { 'not-started': WAITING_SHOWN, completed: COMPLETED_SHOWN }
 
 const isStage = (v: unknown): v is Stage => STAGES.some((s) => s.id === v)
 
@@ -48,8 +51,8 @@ function bucket(tasks: Task[]): Record<Stage, Task[]> {
  */
 function moveAndFollow(taskId: string, stage: Stage) {
   moveTaskToStage(taskId, stage)
-  // A finished task can land past the Completed cap; showing it the way search does reveals it.
-  if (stage === 'completed') useUiStore.getState().flashTask(taskId)
+  // A task can land past a column's cap (Completed, Not started); showing it the way search does reveals it.
+  if (stage !== 'in-progress') useUiStore.getState().flashTask(taskId)
   requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-task-id="${taskId}"] [data-card-title]`)?.focus())
 }
 const titleOf = (id: unknown) => useTaskStore.getState().tasks.find((t) => t.id === id)?.title ?? 'Task'
@@ -66,9 +69,13 @@ const announcements: Announcements = {
  * finish it. Drag a card between columns, or use its buttons, which also work from the keyboard.
  */
 export default function FlowMode() {
-  const { now, tasks, courseOf, courseId } = useWorkspace()
+  const { now: tick, tasks, courseOf, courseId } = useWorkspace()
+  // The cards only need the minute.
+  const minute = Math.floor(tick.getTime() / 60_000)
+  const now = useMemo(() => new Date(minute * 60_000), [minute])
   const flashId = useUiStore((s) => s.flashTaskId)
-  const [allDone, setAllDone] = useState(false)
+  const [expanded, setExpanded] = useState<Stage[]>([])
+  const expand = (s: Stage) => setExpanded((e) => (e.includes(s) ? e : [...e, s]))
   const [dragging, setDragging] = useState<string | null>(null)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -81,7 +88,10 @@ export default function FlowMode() {
   const [revealed, setRevealed] = useState<string | null>(null)
   if (flashId !== revealed) {
     setRevealed(flashId)
-    if (columns.completed.findIndex((t) => t.id === flashId) >= COMPLETED_SHOWN) setAllDone(true)
+    for (const s of STAGES) {
+      const cap = LIMIT[s.id]
+      if (cap !== undefined && columns[s.id].findIndex((t) => t.id === flashId) >= cap && !expanded.includes(s.id)) setExpanded([...expanded, s.id])
+    }
   }
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -103,7 +113,8 @@ export default function FlowMode() {
         <p className="sr-only">Drag a task to another column, or use the Start, Complete and Reopen buttons on each task.</p>
         <div className="mt-5 grid items-start gap-x-6 gap-y-8 md:grid-cols-3">
           {STAGES.map(({ id, label }) => {
-            const list = id === 'completed' && !allDone ? columns.completed.slice(0, COMPLETED_SHOWN) : columns[id]
+            const cap = LIMIT[id]
+            const list = cap !== undefined && !expanded.includes(id) ? columns[id].slice(0, cap) : columns[id]
             const hidden = columns[id].length - list.length
             return (
               <Column key={id} stage={id} label={label} count={columns[id].length}>
@@ -114,7 +125,7 @@ export default function FlowMode() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => setAllDone(true)}
+                      onClick={() => expand(id)}
                       className="cursor-pointer rounded-md px-1 py-1 text-[13px] text-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                     >
                       Show {hidden} more

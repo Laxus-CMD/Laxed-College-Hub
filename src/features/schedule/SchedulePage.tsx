@@ -97,7 +97,7 @@ export default function SchedulePage() {
     () => ({
       show: (el: HTMLElement, content: ReactNode) => {
         window.clearTimeout(hoverTimer.current)
-        hoverTimer.current = window.setTimeout(() => setHover({ anchor: el, content }), 450)
+        hoverTimer.current = window.setTimeout(() => setHover(el.isConnected ? { anchor: el, content } : null), 450)
       },
       hide: () => {
         window.clearTimeout(hoverTimer.current)
@@ -107,6 +107,8 @@ export default function SchedulePage() {
     [],
   )
   useEffect(() => () => window.clearTimeout(hoverTimer.current), [])
+  // A new week or month replaces every item: whatever was hovered is gone.
+  useEffect(() => hoverApi.hide(), [hoverApi, view, anchor])
 
   const handlers: ViewHandlers = {
     onTask: (id, el) => setPop({ kind: 'task', id, anchor: el }),

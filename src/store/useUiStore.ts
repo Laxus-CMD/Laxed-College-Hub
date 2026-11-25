@@ -38,6 +38,8 @@ interface UiState {
   selectedNoteId: string | null
   selectNote: (id: string | null) => void
   flashTaskId: string | null
+  /** Goes up with every flash, so opening the same task again scrolls to it again. */
+  flashCount: number
   flashTask: (id: string | null) => void
   toast: Toast | null
   showToast: (toast: Toast) => void
@@ -59,7 +61,8 @@ export const useUiStore = create<UiState>()((set) => ({
   selectedNoteId: null,
   selectNote: (selectedNoteId) => set({ selectedNoteId }),
   flashTaskId: null,
-  flashTask: (flashTaskId) => set({ flashTaskId }),
+  flashCount: 0,
+  flashTask: (flashTaskId) => set((s) => ({ flashTaskId, flashCount: flashTaskId ? s.flashCount + 1 : s.flashCount })),
   toast: null,
   showToast: (toast) => set({ toast }),
   hideToast: () => set({ toast: null }),

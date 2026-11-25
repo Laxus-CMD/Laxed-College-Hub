@@ -286,7 +286,7 @@ function DeadlineCell({ day, today, items, courses, handlers }: { day: Date; tod
               key={task.id}
               task={task}
               course={course}
-              label={taskLabel(task, '')}
+              label={taskLabel(task, ` ${longDay(day)}`)}
               onOpen={(el) => handlers.onTask(task.id, el)}
               className={cn('flex w-full min-w-0 items-center gap-1.5 rounded-[6px] px-1.5 py-[3px] text-left text-[12px] leading-tight', look.className)}
               style={look.style}
@@ -300,6 +300,7 @@ function DeadlineCell({ day, today, items, courses, handlers }: { day: Date; tod
           <button
             type="button"
             onClick={() => handlers.onDay(day)}
+            aria-label={`${hidden} more due ${longDay(day)}`}
             className="cursor-pointer self-start rounded-[6px] px-1.5 py-0.5 text-[11.5px] font-medium text-muted hover:bg-fill hover:text-ink"
           >
             {hidden} more

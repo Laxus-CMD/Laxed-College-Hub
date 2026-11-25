@@ -9,6 +9,7 @@ import { useUiStore } from '@/store/useUiStore'
 export function useFlashedTask() {
   const flashId = useUiStore((s) => s.flashTaskId)
   const flashTask = useUiStore((s) => s.flashTask)
+  const count = useUiStore((s) => s.flashCount)
   useEffect(() => {
     if (!flashId) return
     // After the mode has had a frame to reveal it.
@@ -18,5 +19,5 @@ export function useFlashedTask() {
       cancelAnimationFrame(frame)
       clearTimeout(timer)
     }
-  }, [flashId, flashTask])
+  }, [flashId, count, flashTask])
 }

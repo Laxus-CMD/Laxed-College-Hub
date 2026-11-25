@@ -8,6 +8,9 @@ const GAP = 6
 
 /** Puts a fixed-position panel below the anchor, or above when there is no room, always inside the window. */
 export function placeNear(el: HTMLElement, anchor: PopoverAnchor): void {
+  // An element anchor that left the page (its task moved to another day) measures as all zeros;
+  // the panel stays where it is instead of jumping to the corner.
+  if (anchor instanceof Element && !anchor.isConnected) return
   const r = anchor.getBoundingClientRect()
   const w = el.offsetWidth
   const h = el.offsetHeight

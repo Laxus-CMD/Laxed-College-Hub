@@ -67,7 +67,8 @@ The app learns the list on each load and on a recheck with nothing unsaved; an A
 while a tab is open with unsaved changes is picked up at the next load. When a recheck finds a newly listed field, the app loads
 everything again before it allows writes to that field, because the stores hold null for it, and the next edit
 would otherwise clear the saved value. Importing guest data whose tasks hold a field the account cannot store
-yet is saved, but the browser copy is kept and the student is told why. Guests keep everything in the browser and see every mode. Each new field
+yet is saved, but the browser copy is kept and the student is told why. Importing that copy again once the API lists
+the field fills it in: a task the account already has takes an estimate or progress it left empty. Guests keep everything in the browser and see every mode. Each new field
 or record kind adds a feature name (`FEATURES` on the server, `API_FEATURES` in the app, checked by
 `tests/contract.test.ts`) and the mode that needs it says so. The deploy order above still applies to new
 fields a mode does not gate.

@@ -30,6 +30,9 @@ export function HoverCard({ anchor, children }: { anchor: HTMLElement; children:
   useLayoutEffect(() => {
     if (card.current) placeNear(card.current, anchor)
   }, [anchor, children])
+  // The hovered item can unmount without a pointerleave (the week changes by keyboard, a sync
+  // update, a filter): then there is nothing to describe.
+  if (!anchor.isConnected) return null
   return createPortal(
     <div
       ref={card}
@@ -115,6 +118,7 @@ export function DraggableTask({
       onClick={(e) => onOpen(e.currentTarget)}
       aria-label={label}
       aria-roledescription="task"
+      data-task-id={task.id}
       className={cn('cursor-pointer touch-manipulation transition-[opacity,filter] hover:brightness-[0.97] dark:hover:brightness-110', isDragging && 'opacity-40', className)}
       style={style}
     >

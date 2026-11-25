@@ -84,6 +84,13 @@ describe('Classic', () => {
     expect(fold('Overdue')).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('counts every opening, so the same task opened again is shown again', () => {
+    const before = useUiStore.getState().flashCount
+    act(() => useUiStore.getState().flashTask('old'))
+    act(() => useUiStore.getState().flashTask('old'))
+    expect(useUiStore.getState().flashCount).toBe(before + 2)
+  })
+
   it('unfolds the group of a task opened from elsewhere', () => {
     useUiStore.getState().flashTask('old')
     render(<App />)
@@ -225,6 +232,14 @@ describe('Flow', () => {
     await open()
     fireEvent.click(screen.getByRole('button', { name: 'Complete Undated work' }))
     await waitFor(() => expect(within(column('Completed')).getByRole('button', { name: 'Undated work' })).toHaveFocus())
+  })
+
+  it('shows the most pressing work waiting, and the rest on request', async () => {
+    useTaskStore.setState({ tasks: Array.from({ length: 45 }, (_, i) => task('w' + i, 'Waiting ' + i, '2026-12-' + String((i % 28) + 1).padStart(2, '0'))) })
+    await open()
+    expect(within(column('Not started')).getAllByRole('button', { name: /^Waiting [0-9]+$/ })).toHaveLength(40)
+    fireEvent.click(within(column('Not started')).getByRole('button', { name: 'Show 5 more' }))
+    expect(within(column('Not started')).getAllByRole('button', { name: /^Waiting [0-9]+$/ })).toHaveLength(45)
   })
 
   it('lists completed work latest due first, with undated work last', async () => {
