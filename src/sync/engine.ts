@@ -1,4 +1,5 @@
 import { accountsApi, ApiError, request, type Account } from '@/features/auth/api'
+import { API_FEATURES, type ApiFeature } from '@/types'
 import { uid } from '@/lib/cn'
 import { setDeviceStorage } from '@/lib/storage'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -49,7 +50,31 @@ interface LoadResponse {
   accountId: string
   revision: number
   data: ServerDoc | null
+  /** Missing from an API before 1.10.0. */
+  features?: unknown
 }
+
+/**
+ * A request body without what the account's API has not said it can store. An older API would
+ * refuse a profile field (blocking every save) or drop a task field. Only the request is trimmed:
+ * the engine still counts the whole change as sent, so it is not resent forever.
+ */
+function forApi(changes: Changes): Changes {
+  const { features } = useSyncStore.getState()
+  let out = changes
+  if (!features.includes('taskMode') && out.profile && 'taskMode' in out.profile) {
+    const { taskMode: _t, ...profile } = out.profile
+    out = { ...out, profile: Object.keys(profile).length ? profile : undefined }
+  }
+  if (!features.includes('progress') && out.upsert.tasks.some((t) => 'progress' in t)) {
+    out = { ...out, upsert: { ...out.upsert, tasks: out.upsert.tasks.map(({ progress: _p, ...t }) => t) } }
+  }
+  return out
+}
+
+/** What the API says it can store, keeping only what this app knows about. */
+const featuresOf = (res: LoadResponse): ApiFeature[] =>
+  Array.isArray(res.features) ? API_FEATURES.filter((f) => (res.features as unknown[]).includes(f)) : []
 interface SaveResponse {
   revision: number
   data: ServerDoc | null
@@ -220,6 +245,7 @@ export class SyncEngine {
       local: 'none',
       message: null,
       heldFor: this.heldFor(account.id),
+      features: [],
     })
 
     try {
@@ -227,6 +253,8 @@ export class SyncEngine {
       if (epoch !== this.epoch) return
       if (res.accountId !== account.id || !res.data) return await this.followSession(epoch)
       const open: Open = { account, base: this.fromServer(res.data), revision: res.revision }
+      // Before the stores fill, so the page never shows a mode this API cannot keep.
+      useSyncStore.setState({ features: featuresOf(res) })
       const { saved, refused } = await this.recover(open, epoch)
       if (epoch !== this.epoch) return
       this.open_ = open
@@ -271,7 +299,7 @@ export class SyncEngine {
         continue
       }
       try {
-        const body = { accountId: p.accountId, clientId: p.clientId, baseRevision: p.revision, ...changes }
+        const body = { accountId: p.accountId, clientId: p.clientId, baseRevision: p.revision, ...forApi(changes) }
         const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body))
         if (epoch !== this.epoch) return { saved, refused }
         open.base = res.data ? this.fromServer(res.data) : apply(open.base, changes)
@@ -447,7 +475,7 @@ export class SyncEngine {
 
   private async send(open: Open, sent: Doc, changes: Changes, closing: boolean): Promise<void> {
     const epoch = this.epoch
-    const body = { accountId: open.account.id, clientId: this.clientId, baseRevision: open.revision, ...changes }
+    const body = { accountId: open.account.id, clientId: this.clientId, baseRevision: open.revision, ...forApi(changes) }
     const keepalive = closing && JSON.stringify(body).length < KEEPALIVE_LIMIT
     if (!this.retryDelay) useSyncStore.setState({ status: 'saving', message: null })
     this.firstUnsavedAt = 0
@@ -512,6 +540,9 @@ export class SyncEngine {
       // A save that finished meanwhile knows more than this answer.
       if (epoch !== this.epoch || this.saving || open.revision !== revision) return
       if (res.accountId !== open.account.id) return await this.followSession(epoch)
+      // The API can be upgraded (or rolled back) while the tab stays open.
+      const features = featuresOf(res)
+      if (features.join() !== useSyncStore.getState().features.join()) useSyncStore.setState({ features })
       if (!res.data) return
       this.rebase(open, base, res.data)
       open.revision = res.revision

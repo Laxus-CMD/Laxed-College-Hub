@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { KEEP_IF_MISSING as SERVER_KEEP, TASK_MODES as SERVER_MODES } from '../server/dataSchema.ts'
+import { FEATURES, KEEP_IF_MISSING as SERVER_KEEP, TASK_MODES as SERVER_MODES } from '../server/dataSchema.ts'
 import { KEEP_IF_MISSING as CLIENT_KEEP } from '@/sync/doc'
-import { TASK_MODES } from '@/types'
+import { API_FEATURES, TASK_MODES } from '@/types'
 
 // The app and the API are deployed separately, so lists they both hold must agree.
 describe('the app and the API agree', () => {
+  it('on what the API reports it can store', () => {
+    expect([...FEATURES]).toEqual([...API_FEATURES])
+  })
+
   it('on the workspace modes', () => {
     expect([...SERVER_MODES]).toEqual([...TASK_MODES])
   })

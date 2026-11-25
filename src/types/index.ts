@@ -36,6 +36,16 @@ export type TaskKind = 'assignment' | 'todo'
 export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as const
 export type TaskMode = (typeof TASK_MODES)[number]
 
+/**
+ * What an account's API can store beyond 1.9.0, as it reports with every load. Guests store
+ * everything in the browser. Must match FEATURES in server/dataSchema.ts.
+ */
+export const API_FEATURES = ['taskMode', 'progress'] as const
+export type ApiFeature = (typeof API_FEATURES)[number]
+
+/** How far along an open task is. Not started when missing; completion is `done`. */
+export type TaskProgress = 'started'
+
 export interface Task {
   id: string
   kind: TaskKind
@@ -53,6 +63,8 @@ export interface Task {
    * assignment (it can count toward the grade) that the calendar shows differently.
    */
   category?: 'exam' | null
+  /** Set when work has begun (Flow's In progress). Kept when the task is done, so reopening restores it. */
+  progress?: TaskProgress | null
 }
 
 /** A concrete upcoming meeting of a session, with real dates. */

@@ -22,6 +22,7 @@ import { cleanDoc, readStores } from '@/sync/doc'
 import { SyncEngine } from '@/sync/engine'
 import { listPending, resetPendingMemory, savePending } from '@/sync/pending'
 import { CLOSED, useSyncStore } from '@/sync/useSyncStore'
+import { API_FEATURES } from '@/types'
 
 const ORIGIN = 'http://localhost:5173'
 const realFetch = globalThis.fetch
@@ -360,6 +361,51 @@ describe('saving', () => {
     expect(await e.flush()).toBe(true)
     expect(useTaskStore.getState().tasks).toHaveLength(1)
     expect(useTaskStore.getState().tasks[0]).toMatchObject({ id: 't-phone', done: true })
+  })
+})
+
+describe('what the API can store', () => {
+  it('learns it with the first load', async () => {
+    const a = await signUp()
+    await openApp(a)
+    expect(useSyncStore.getState().features).toEqual([...API_FEATURES])
+  })
+
+  it('treats an API that says nothing (before 1.10.0) as storing none of it', async () => {
+    const a = await signUp()
+    const real = globalThis.fetch
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const res = await real(input, init)
+      if (!String(input).includes('/api/data') || (init?.method ?? 'GET') !== 'GET') return res
+      const { features: _f, ...body } = await res.json()
+      return new Response(JSON.stringify(body), { status: res.status, headers: res.headers })
+    })
+    try {
+      const e = await openApp(a)
+      expect(useSyncStore.getState()).toMatchObject({ phase: 'ready', features: [] })
+      // Nothing the API did not list is sent, and the save is not stuck on it.
+      useSettingsStore.getState().setTaskMode('flow')
+      useTaskStore.getState().addTask({ kind: 'todo', title: 'Started elsewhere', progress: 'started' })
+      expect(await e.flush()).toBe(true)
+      expect(status()).toBe('saved')
+      const saved = await stored()
+      expect(saved.profile.taskMode).toBeNull()
+      expect(saved.tasks).toMatchObject([{ title: 'Started elsewhere' }])
+      expect(saved.tasks[0]).not.toHaveProperty('progress')
+      expect(e.hasUnsaved()).toBe(false)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('starts over for each account', async () => {
+    const a = await signUp()
+    useSyncStore.setState({ features: ['progress'] })
+    const e = newEngine()
+    useAuthStore.setState({ account: a, guest: false })
+    const opening = e.open(a)
+    expect(useSyncStore.getState().features).toEqual([])
+    await opening
   })
 })
 

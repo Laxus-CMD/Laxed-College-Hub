@@ -1,3 +1,4 @@
+import { fieldsForStage, stageLabel, stageOf, type Stage } from '@/lib/stage'
 import { makeDemoData } from '@/data/demo'
 import type { GradeComponent } from '@/types'
 import { useGradeStore } from '@/store/useGradeStore'
@@ -135,6 +136,23 @@ export function rescheduleTask(taskId: string, due: string, message: string): vo
     undo: () => {
       const now = useTaskStore.getState().tasks.find((t) => t.id === taskId)
       if (now && now.due === due) useTaskStore.getState().updateTask(taskId, { due: previous })
+    },
+  })
+}
+
+/** Moves a task to another Flow stage, with Undo. Nothing happens if it is already there. */
+export function moveTaskToStage(taskId: string, stage: Stage): void {
+  const { tasks, updateTask } = useTaskStore.getState()
+  const task = tasks.find((t) => t.id === taskId)
+  if (!task || stageOf(task) === stage) return
+  const before = { done: task.done, progress: task.progress ?? null }
+  updateTask(taskId, fieldsForStage(stage))
+  useUiStore.getState().showToast({
+    message: `Moved to ${stageLabel(stage)}.`,
+    undo: () => {
+      // Only if nothing else has moved it since.
+      const now = useTaskStore.getState().tasks.find((t) => t.id === taskId)
+      if (now && stageOf(now) === stage) useTaskStore.getState().updateTask(taskId, before)
     },
   })
 }

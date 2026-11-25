@@ -7,7 +7,7 @@ any mode shows at once in the others, on the Schedule calendar and in the dashbo
 | Mode | For | Phase |
 | --- | --- | --- |
 | Classic | Seeing everything that is due, grouped by urgency, and ticking it off | 1 (done) |
-| Flow | Work that takes several sittings: Not started, In progress, Completed | 2 |
+| Flow | Work that takes several sittings: Not started, In progress, Completed | 2 (done) |
 | Focus | Working on one task: its details, steps, notes, the Pomodoro timer, what is next | 3 |
 | Workload | Seeing which days are heavy, by course, before they arrive | 4 |
 | Between Classes | Fitting tasks into the gaps in today's timetable, around reserved time | 5 |
@@ -20,6 +20,7 @@ any mode shows at once in the others, on the Schedule calendar and in the dashbo
   - `useTaskMode()` gives the saved mode.
   - `useFlashedTask()` (run by the page, not the modes) scrolls to a task opened from search or the dashboard and ends the highlight. A mode that hides tasks reveals the flashed one from `flashTaskId`.
   - `ModeSwitcher` is a radio group (arrow keys, one tab stop).
+  - `src/lib/stage.ts` and `moveTaskToStage` (in `store/actions.ts`, with Undo) define Flow's stages from `done` and `progress`.
   - `TaskComposer` adds a task in place. A mode passes `defaults` to say what a task added there starts as.
 - Each mode lives in its own folder (`classic/`, later `flow/` and so on). It uses the shared
   `TaskRow`, `urgency.ts` and `taskType.ts` and the store actions (`deleteTask`, `rescheduleTask`,
@@ -56,9 +57,16 @@ So: run the migrations, deploy the API, wait until no old API instance is servin
 GitHub Pages publishes on a push to `main`, so merge only after the API is live. Roll back the other way
 round: the app first, and never the API below the published app.
 
-Phase 1 alone does not depend on this, because nothing can set a mode until a second mode is registered.
-Before phase 2 ships, `GET /api/data` should report what the API can store (a version or a feature list), and
-the app should hide modes and fields the API cannot keep. That removes the ordering hazard instead of relying on it.
+Since phase 2, `GET /api/data` lists `features`: what the API can store beyond 1.9.0. An account's app offers
+a mode only when its API lists what the mode saves (`needs` in `modes.ts`), and offers no choice of mode
+until the API lists `taskMode`. An API before 1.10.0 lists nothing, so its students see Classic only. The
+sync engine also leaves unlisted fields out of every request (`forApi` in `src/sync/engine.ts`), so data
+that arrives another way (a backup import, a change made before an API rollback) is not refused or resent.
+The app learns the list on each load and on a recheck with nothing unsaved; an API upgraded or rolled back
+while a tab is open with unsaved changes is picked up at the next load. Guests keep everything in the browser and see every mode. Each new field
+or record kind adds a feature name (`FEATURES` on the server, `API_FEATURES` in the app, checked by
+`tests/contract.test.ts`) and the mode that needs it says so. The deploy order above still applies to new
+fields a mode does not gate.
 
 ## Performance
 

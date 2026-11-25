@@ -1,6 +1,6 @@
-import type { ComponentType } from 'react'
-import { ListChecks, type LucideIcon } from 'lucide-react'
-import type { TaskMode } from '@/types'
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
+import { Columns3, ListChecks, type LucideIcon } from 'lucide-react'
+import type { ApiFeature, TaskMode } from '@/types'
 import ClassicMode from '@/features/assignments/classic/ClassicMode'
 
 export interface ModeDef {
@@ -9,8 +9,10 @@ export interface ModeDef {
   /** What the mode is for, in a few words. Shown as the switcher's tooltip and read by screen readers. */
   purpose: string
   icon: LucideIcon
+  /** What the mode saves that an older API cannot keep. The mode is hidden until the API can. */
+  needs?: ApiFeature
   /** Classic is the default, so it loads with the page. Later modes can load on demand with `lazy`. */
-  View: ComponentType
+  View: ComponentType | LazyExoticComponent<ComponentType>
 }
 
 /**
@@ -25,6 +27,15 @@ export const MODES: ModeDef[] = [
     icon: ListChecks,
     View: ClassicMode,
   },
+  {
+    id: 'flow',
+    label: 'Flow',
+    purpose: 'Move work that takes several sittings from Not started to Completed',
+    icon: Columns3,
+    needs: 'progress',
+    View: lazy(() => import('@/features/assignments/flow/FlowMode')),
+  },
 ]
 
-export const modeOf = (id: TaskMode | null | undefined): ModeDef => MODES.find((m) => m.id === id) ?? MODES[0]!
+/** The mode for an id, among those offered; Classic when it is not one of them. */
+export const modeOf = (id: TaskMode | null | undefined, offered: readonly ModeDef[] = MODES): ModeDef => offered.find((m) => m.id === id) ?? MODES[0]!

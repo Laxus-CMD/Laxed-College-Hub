@@ -112,6 +112,8 @@ const CLEAN: { [K in Kind]: (r: Doc[K][number]) => Doc[K][number] } = {
       // Always sent, as "exam" or null: the server keeps a saved category only when it is missing (older apps).
       // A to-do is never an exam.
       category: t.kind === 'assignment' && t.category === 'exam' ? 'exam' : null,
+      // Always sent, as "started" or null: the server keeps saved progress only when it is missing (older apps).
+      progress: t.progress === 'started' ? 'started' : null,
       title: text(t.title, 1000),
       courseId: matching(t.courseId, ID),
       due: matching(t.due, DUE),
@@ -261,7 +263,7 @@ export function isEmpty(c: Changes): boolean {
  */
 export const KEEP_IF_MISSING: Partial<Record<Kind, readonly string[]>> = {
   sessions: ['startsOn', 'endsOn'],
-  tasks: ['category'],
+  tasks: ['category', 'progress'],
   components: ['totalScore'],
 }
 

@@ -54,6 +54,7 @@ const TABLES: Record<Kind, { table: string; columns: readonly Column[] }> = {
       ['source', 'source', 'text'],
       ['externalId', 'external_id', 'text'],
       ['category', 'category', 'text'],
+      ['progress', 'progress', 'text'],
     ],
   },
   notes: {

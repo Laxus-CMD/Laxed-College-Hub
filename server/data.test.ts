@@ -129,7 +129,7 @@ describe('loading and saving', () => {
   it('answers ?since with nothing when nothing changed', async () => {
     const s = await student()
     await s.save(full)
-    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null })
+    expect((await call(s.cookie, 'GET', '/data?since=1')).json).toEqual({ accountId: s.accountId, revision: 1, data: null, features: ['taskMode', 'progress'] })
     expect((await call(s.cookie, 'GET', '/data?since=0')).json.data.courses).toHaveLength(2)
     expect((await call(s.cookie, 'GET', '/data?since=abc')).status).toBe(400)
   })
@@ -549,6 +549,33 @@ describe('the Tasks workspace mode', () => {
     const res = await s.send({ profile: { taskMode: 'kanban' } })
     expect(res.status).toBe(400)
     expect((await s.load()).profile.taskMode).toBeNull()
+  })
+})
+
+describe('task progress (Flow)', () => {
+  it('is reported as something this API can store, on every load', async () => {
+    const s = await student()
+    expect((await call(s.cookie, 'GET', '/data')).json.features).toEqual(['taskMode', 'progress'])
+    expect((await call(s.cookie, 'GET', '/data?since=0')).json).toMatchObject({ data: null, features: ['taskMode', 'progress'] })
+  })
+
+  it('stores it, keeps it when an older app saves the task without knowing, and clears it on null', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('essay', { progress: 'started' })] } })
+    expect((await s.load()).tasks).toEqual([task('essay', { progress: 'started' })])
+    // Version 1.9.0 marks it done. It has never heard of progress.
+    const res = await s.send({ upsert: { tasks: [task('essay', { done: true })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    expect(res.json.data.tasks[0]).toMatchObject({ id: 'essay', done: true, progress: 'started' })
+    await s.save({ upsert: { tasks: [task('essay', { done: true, progress: null })] } })
+    expect((await s.load()).tasks).toEqual([task('essay', { done: true })])
+  })
+
+  it('refuses a stage it does not know, and saves nothing', async () => {
+    const s = await student()
+    const res = await s.send({ upsert: { tasks: [task('odd', { progress: 'blocked' })] } })
+    expect(res.status).toBe(400)
+    expect((await s.load()).tasks).toEqual([])
   })
 })
 

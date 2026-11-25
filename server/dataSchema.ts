@@ -6,6 +6,13 @@ import { z } from 'zod'
  * from saving everything else. Unknown keys inside records are dropped.
  */
 
+/**
+ * What this API can store beyond 1.9.0, sent with every load. The app hides what the API it
+ * talks to cannot keep, so an app deployed before its API never loses data. Must match
+ * API_FEATURES in src/types.
+ */
+export const FEATURES = ['taskMode', 'progress'] as const
+
 /** The Tasks workspace modes. Must match TASK_MODES in src/types and the CHECK in migration 008. */
 export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as const
 
@@ -15,7 +22,7 @@ export const TASK_MODES = ['classic', 'flow', 'focus', 'workload', 'between'] as
  */
 export const KEEP_IF_MISSING = {
   sessions: [['startsOn', 'starts_on'], ['endsOn', 'ends_on']],
-  tasks: [['category', 'category']],
+  tasks: [['category', 'category'], ['progress', 'progress']],
   // Handled by keepTotals in studentData.ts, which also defaults it; listed so the contract test covers it.
   components: [['totalScore', 'total_score']],
 } as const
@@ -92,6 +99,8 @@ const task = z.object({
   externalId: maybe(text(500)).transform((v) => v || null),
   /** Missing keeps what is saved (apps before 1.9.0 do not know it); null clears it. */
   category: z.enum(['exam']).nullable().optional(),
+  /** Missing keeps what is saved (apps before 1.10.0 do not know it); null means not started. */
+  progress: z.enum(['started']).nullable().optional(),
 })
 
 const note = z

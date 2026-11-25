@@ -4,19 +4,11 @@ import { CheckButton } from '@/components/ui/CheckButton'
 import { CourseChip } from '@/components/ui/Chip'
 import { IconButton } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
-import { dueLabel, type DueTone } from '@/features/assignments/urgency'
+import { dueLabel, DUE_TONE_CLASS as TONE } from '@/features/assignments/urgency'
 import { deleteTask } from '@/store/actions'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
 import { typeLabel } from '@/features/assignments/taskType'
-
-/** Understated: overdue and due today get color, the rest stay quiet. */
-const TONE: Record<DueTone, string> = {
-  bad: 'text-bad font-medium',
-  warn: 'text-warn font-medium',
-  normal: 'text-muted',
-  faint: 'text-faint',
-}
 
 interface TaskRowProps {
   task: Task
@@ -38,6 +30,7 @@ export function TaskRow({ task, now, course, full = false }: TaskRowProps) {
 
   const meta = [
     typeLabel(task),
+    !task.done && task.progress === 'started' ? 'In progress' : null,
     task.weight ? `${task.weight}% of grade` : null,
     task.source === 'ics' ? 'From Canvas' : null,
   ]

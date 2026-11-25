@@ -3,7 +3,7 @@ import { Plus, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn } from '@/lib/cn'
-import { MODES, modeOf } from '@/features/assignments/workspace/modes'
+import { modeOf } from '@/features/assignments/workspace/modes'
 import { ModeSwitcher } from '@/features/assignments/workspace/ModeSwitcher'
 import { useFlashedTask } from '@/features/assignments/workspace/useFlashedTask'
 import { useTaskMode } from '@/features/assignments/workspace/useTaskMode'
@@ -16,7 +16,7 @@ import { useUiStore } from '@/store/useUiStore'
  */
 export default function AssignmentsPage() {
   const { all, courses, courseId, setCourseId } = useWorkspace()
-  const [mode, setMode] = useTaskMode()
+  const { modes, mode, setMode, canChoose } = useTaskMode()
   const openDialog = useUiStore((s) => s.openDialog)
   const { View } = modeOf(mode)
   useFlashedTask()
@@ -49,7 +49,7 @@ export default function AssignmentsPage() {
       </PageHeader>
 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        {MODES.length > 1 ? <ModeSwitcher modes={MODES} value={mode} onChange={setMode} /> : <span />}
+        {canChoose ? <ModeSwitcher modes={modes} value={mode} onChange={setMode} /> : <span />}
         {courses.length > 0 ? (
           <label className="flex items-center gap-2 text-[13px] text-muted">
             {course ? <i className="size-2 rounded-full" style={{ background: course.color }} aria-hidden="true" /> : null}

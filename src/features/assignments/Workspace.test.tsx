@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/app/App'
 import type { Task } from '@/types'
@@ -7,6 +7,8 @@ import { cleanDoc, readStores } from '@/sync/doc'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTaskStore } from '@/store/useTaskStore'
 import { useUiStore } from '@/store/useUiStore'
+import { useSyncStore, CLOSED } from '@/sync/useSyncStore'
+import { useTaskMode } from './workspace/useTaskMode'
 import { CLASSIC_KEY } from './classic/collapse'
 
 // Tuesday, November 24 2026, 8:00.
@@ -29,6 +31,7 @@ beforeEach(() => {
   window.location.hash = '#assignments'
 })
 afterEach(() => {
+  useSyncStore.setState(CLOSED)
   vi.useRealTimers()
   localStorage.removeItem(CLASSIC_KEY)
   window.location.hash = ''
@@ -142,5 +145,123 @@ describe('Classic', () => {
     render(<App />)
     act(() => useTaskStore.getState().toggleTask('late'))
     expect(screen.queryByRole('region', { name: 'Overdue' })).not.toBeInTheDocument()
+  })
+})
+
+describe('choosing a mode', () => {
+  it('offers Flow to a guest and remembers the choice', async () => {
+    render(<App />)
+    const modes = screen.getByRole('radiogroup', { name: 'Workspace mode' })
+    expect(within(modes).getByRole('radio', { name: 'Classic' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(modes).getByRole('radio', { name: 'Flow' }))
+    expect(useSettingsStore.getState().taskMode).toBe('flow')
+    expect(await screen.findByRole('region', { name: 'In progress' })).toBeInTheDocument()
+  })
+
+  it('moves between modes with the arrow keys', () => {
+    render(<App />)
+    fireEvent.keyDown(screen.getByRole('radio', { name: 'Classic' }), { key: 'ArrowRight' })
+    expect(useSettingsStore.getState().taskMode).toBe('flow')
+    expect(screen.getByRole('radio', { name: 'Flow' })).toHaveFocus()
+  })
+
+  it('offers only Classic, and no choice, while the account API cannot keep them', () => {
+    useSettingsStore.setState({ taskMode: 'flow' })
+    useSyncStore.setState({ accountId: 'a1', features: [] })
+    const { result, rerender } = renderHook(() => useTaskMode())
+    expect(result.current).toMatchObject({ mode: 'classic', canChoose: false })
+    expect(result.current.modes.map((m) => m.id)).toEqual(['classic'])
+    act(() => useSyncStore.setState({ features: ['taskMode', 'progress'] }))
+    rerender()
+    expect(result.current).toMatchObject({ mode: 'flow', canChoose: true })
+  })
+})
+
+describe('Flow', () => {
+  const column = (name: string) => screen.getByRole('region', { name })
+  const open = async () => {
+    useSettingsStore.setState({ taskMode: 'flow' })
+    render(<App />)
+    await screen.findByRole('region', { name: 'Not started' })
+  }
+
+  it('sorts tasks into Not started, In progress and Completed', async () => {
+    useTaskStore.getState().updateTask('quiz', { progress: 'started' })
+    await open()
+    expect(column('Not started')).toHaveTextContent('Lab report')
+    expect(column('Not started')).toHaveTextContent('Essay draft')
+    expect(column('In progress')).toHaveTextContent('Quiz 4')
+    expect(column('Completed')).toHaveTextContent('Problem Set 3')
+  })
+
+  it('starts, completes and reopens a task with its buttons, which Classic and the calendar see too', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Start Essay draft' }))
+    expect(column('In progress')).toHaveTextContent('Essay draft')
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'essay')).toMatchObject({ done: false, progress: 'started' })
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Essay draft' }))
+    expect(column('Completed')).toHaveTextContent('Essay draft')
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'essay')).toMatchObject({ done: true, progress: 'started' })
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Essay draft' }))
+    expect(column('In progress')).toHaveTextContent('Essay draft')
+  })
+
+  it('keeps the keyboard on a task after moving it', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Start Essay draft' }))
+    await waitFor(() => expect(within(column('In progress')).getByRole('button', { name: 'Essay draft' })).toHaveFocus())
+  })
+
+  it('keeps the keyboard on a task that is completed past the first few shown', async () => {
+    useTaskStore.setState({
+      tasks: [
+        ...Array.from({ length: 12 }, (_, i) => task(`d${i}`, `Done ${i}`, `2026-11-${String(i + 10).padStart(2, '0')}`, { done: true })),
+        task('w', 'Undated work', undefined, { progress: 'started' }),
+      ],
+    })
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Undated work' }))
+    await waitFor(() => expect(within(column('Completed')).getByRole('button', { name: 'Undated work' })).toHaveFocus())
+  })
+
+  it('lists completed work latest due first, with undated work last', async () => {
+    useTaskStore.setState({
+      tasks: [task('a', 'Older', '2026-11-02', { done: true }), task('b', 'Undated', undefined, { done: true }), task('c', 'Newer', '2026-11-20', { done: true })],
+    })
+    await open()
+    expect(within(column('Completed')).getAllByRole('button', { name: /^(Older|Undated|Newer)$/ }).map((b) => b.textContent)).toEqual(['Newer', 'Older', 'Undated'])
+  })
+
+  it('undoes a move', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Start Lab report' }))
+    expect(screen.getByText('Moved to In progress.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(column('Not started')).toHaveTextContent('Lab report')
+    expect(useTaskStore.getState().tasks.find((t) => t.id === 'late')?.progress ?? null).toBeNull()
+  })
+
+  it('shows the latest completed work, and the rest on request', async () => {
+    useTaskStore.setState({ tasks: Array.from({ length: 14 }, (_, i) => task(`d${i}`, `Done ${i}`, `2026-11-${String(i + 1).padStart(2, '0')}`, { done: true })) })
+    await open()
+    expect(within(column('Completed')).getAllByRole('button', { name: /^Done [0-9]+$/ })).toHaveLength(12)
+    fireEvent.click(screen.getByRole('button', { name: 'Show 2 more' }))
+    expect(within(column('Completed')).getAllByRole('button', { name: /^Done [0-9]+$/ })).toHaveLength(14)
+  })
+
+  it('adds a task to Not started', async () => {
+    await open()
+    const form = screen.getByRole('form', { name: 'Add a task' })
+    fireEvent.change(within(form).getByLabelText('Task title'), { target: { value: 'Outline essay' } })
+    fireEvent.submit(form)
+    expect(column('Not started')).toHaveTextContent('Outline essay')
+  })
+})
+
+describe('Classic and Flow together', () => {
+  it('shows which open tasks are in progress', () => {
+    useTaskStore.getState().updateTask('quiz', { progress: 'started' })
+    render(<App />)
+    expect(group('This week')).toHaveTextContent('In progress')
   })
 })
