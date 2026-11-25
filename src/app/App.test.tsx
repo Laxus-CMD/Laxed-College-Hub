@@ -86,7 +86,7 @@ describe('Navigation and search', () => {
     const u = user()
     render(<App />)
     const pages: [string, string][] = [
-      ['Weekly Schedule', 'Weekly Schedule'],
+      ['Schedule', 'Schedule'],
       ['Tasks & Assignments', 'Tasks & Assignments'],
       ['Grade & GPA Calculator', 'Grade & GPA Calculator'],
       ['Notes', 'Notes'],
@@ -222,12 +222,16 @@ describe('Appearance', () => {
 })
 
 describe('Schedule', () => {
-  it('draws classes on the grid and opens the drawer with notes for that class', async () => {
+  it('draws classes on the calendar and opens the drawer with notes for that class', async () => {
     const u = user()
     render(<App />)
-    await u.click(screen.getByRole('link', { name: 'Weekly Schedule' }))
-    const monday = (await screen.findAllByRole('button', { name: /FNDSTAT, 9:15 to 10:45 AM, UH 310/ }))[0]!
+    await u.click(screen.getByRole('link', { name: 'Schedule' }))
+    const monday = (await screen.findAllByRole('button', { name: /^FNDSTAT, Monday, .*9:15 to 10:45 AM, UH 310/ }))[0]!
     await u.click(monday)
+    // Details first, then the full drawer with notes.
+    const details = await screen.findByRole('dialog', { name: 'Class' })
+    expect(details).toHaveTextContent(/Fundamentals of statistics.*9:15 to 10:45 AM.*UH 310.*Prof. Reyes/)
+    await u.click(within(details).getByRole('button', { name: 'Notes and details' }))
     const drawer = await screen.findByRole('dialog', { name: 'FNDSTAT' })
     expect(within(drawer).getByText('Mon, Thu, 9:15 to 10:45 AM')).toBeInTheDocument()
     expect(within(drawer).getByText('Probability distributions')).toBeInTheDocument()
@@ -237,7 +241,7 @@ describe('Schedule', () => {
   it('adds a class on two days and warns about an overlap', async () => {
     const u = user()
     render(<App />)
-    await u.click(screen.getByRole('link', { name: 'Weekly Schedule' }))
+    await u.click(screen.getByRole('link', { name: 'Schedule' }))
     await u.click(screen.getByRole('button', { name: 'Add class' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add class' })
     await u.selectOptions(within(dialog).getByLabelText('Course'), 'c-cs101')
@@ -247,7 +251,7 @@ describe('Schedule', () => {
     fireEvent.change(within(dialog).getByLabelText('Ends'), { target: { value: '10:30' } })
     expect(await within(dialog).findByRole('status')).toHaveTextContent(/overlaps with FNDSTAT on Mon, FNDSTAT on Thu/)
     await u.click(within(dialog).getByRole('button', { name: 'Add class' }))
-    expect(await screen.findAllByRole('button', { name: /CS 101, 9:30 to 10:30 AM/ })).toHaveLength(2)
+    expect(await screen.findAllByRole('button', { name: /^CS 101, \w+day, .*9:30 to 10:30 AM/ })).toHaveLength(2)
   })
 })
 

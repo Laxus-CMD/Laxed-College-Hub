@@ -101,3 +101,13 @@ describe('currentClass and nextClass', () => {
     expect(nextClass(mon(7, 0), [])).toBeNull()
   })
 })
+
+describe('terms', () => {
+  it('leaves out classes whose term has ended or not begun', () => {
+    const ended = { ...FND, endsOn: '2026-10-22' }
+    const later = { ...MATH, startsOn: '2026-11-02' }
+    expect(currentClass(mon(9, 30), [ended, later])).toBeNull()
+    expect(nextClass(mon(8, 0), [ended, later])?.session.id).toBe('math')
+    expect(nextClass(mon(8, 0), [ended, later])?.start).toEqual(new Date(2026, 10, 2, 13, 15))
+  })
+})

@@ -491,6 +491,81 @@ describe('limits', () => {
   })
 })
 
+describe('academic terms', () => {
+  it('stores the first and last day of a class, and leaves classes without them alone', async () => {
+    const s = await student()
+    await s.save({
+      upsert: {
+        courses: [course('c1')],
+        sessions: [session('old', 'c1', { startsOn: '2026-09-07', endsOn: '2026-12-12' }), session('any', 'c1')],
+      },
+    })
+    const data = await s.load()
+    expect(data.sessions).toEqual([session('old', 'c1', { startsOn: '2026-09-07', endsOn: '2026-12-12' }), session('any', 'c1')])
+    expect(data.sessions[1]).not.toHaveProperty('endsOn')
+  })
+
+  it('keeps term dates when an older app saves the class without knowing about them', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')], sessions: [session('old', 'c1', { startsOn: '2026-09-07', endsOn: '2026-12-12' })] } })
+    // Version 1.8.0 moves the class to another room. It leaves term dates out.
+    const res = await s.send({ upsert: { sessions: [session('old', 'c1', { room: 'GK 204' })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    // The answer carries the kept dates, so the old app's copy does not bring the class back into every week.
+    expect(res.json.data.sessions[0]).toMatchObject({ id: 'old', startsOn: '2026-09-07', endsOn: '2026-12-12' })
+    expect((await s.load()).sessions).toEqual([session('old', 'c1', { room: 'GK 204', startsOn: '2026-09-07', endsOn: '2026-12-12' })])
+  })
+
+  it('clears a date only when asked to, keeping the other', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')], sessions: [session('old', 'c1', { startsOn: '2026-09-07', endsOn: '2026-12-12' })] } })
+    await s.save({ upsert: { sessions: [session('old', 'c1', { startsOn: '2026-09-07', endsOn: null })] } })
+    expect((await s.load()).sessions).toEqual([session('old', 'c1', { startsOn: '2026-09-07' })])
+  })
+
+  it('refuses a malformed date, and saves nothing', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: [course('c1')] } })
+    const res = await s.send({ upsert: { sessions: [session('bad', 'c1', { endsOn: 'next week' })] } })
+    expect(res.status).toBe(400)
+    expect((await s.load()).sessions).toEqual([])
+  })
+})
+
+describe('exams', () => {
+  it('stores an exam, keeps it when an older app saves the task without knowing, and clears it on request', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('midterm', { category: 'exam' })] } })
+    expect((await s.load()).tasks).toEqual([task('midterm', { category: 'exam' })])
+    // Version 1.8.0 marks it done. It has never heard of categories.
+    const res = await s.send({ upsert: { tasks: [task('midterm', { done: true })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    expect(res.json.data.tasks[0]).toMatchObject({ id: 'midterm', done: true, category: 'exam' })
+    expect((await s.load()).tasks).toEqual([task('midterm', { done: true, category: 'exam' })])
+    await s.save({ upsert: { tasks: [task('midterm', { done: true, category: null })] } })
+    expect((await s.load()).tasks).toEqual([task('midterm', { done: true })])
+  })
+
+  it('drops the exam category when an older app turns the exam into a to-do', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('midterm', { category: 'exam' })] } })
+    // Version 1.8.0 changes the kind. It has never heard of categories, so it leaves category out.
+    const res = await s.send({ upsert: { tasks: [task('midterm', { kind: 'todo' })] } }, s.state.revision)
+    expect(res.status).toBe(200)
+    // The answer carries the saved version, so no copy is left as a to-do that still acts like an exam.
+    expect(res.json.data.tasks[0]).toMatchObject({ id: 'midterm', kind: 'todo' })
+    expect(res.json.data.tasks[0].category ?? null).toBeNull()
+    expect((await s.load()).tasks).toEqual([task('midterm', { kind: 'todo' })])
+  })
+
+  it('refuses a category it does not know, and saves nothing', async () => {
+    const s = await student()
+    const res = await s.send({ upsert: { tasks: [task('odd', { category: 'party' })] } })
+    expect(res.status).toBe(400)
+    expect((await s.load()).tasks).toEqual([])
+  })
+})
+
 describe('points-based grades', () => {
   it('stores total possible with a component, and leaves older percentage entries alone', async () => {
     const s = await student()

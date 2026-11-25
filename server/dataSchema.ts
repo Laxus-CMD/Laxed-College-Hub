@@ -58,6 +58,12 @@ const session = z.object({
   end: time,
   room: maybe(text(300)),
   building: maybe(text(300)),
+  /**
+   * Term dates. Missing, null and a date mean three different things. Missing keeps what is
+   * saved, because apps before 1.9.0 do not know about term dates and must not erase them.
+   */
+  startsOn: date.nullable().optional(),
+  endsOn: date.nullable().optional(),
 })
 
 const task = z.object({
@@ -70,6 +76,8 @@ const task = z.object({
   weight: maybe(number),
   source: z.enum(['manual', 'ics']),
   externalId: maybe(text(500)).transform((v) => v || null),
+  /** Missing keeps what is saved (apps before 1.9.0 do not know it); null clears it. */
+  category: z.enum(['exam']).nullable().optional(),
 })
 
 const note = z

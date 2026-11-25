@@ -99,11 +99,17 @@ const CLEAN: { [K in Kind]: (r: Doc[K][number]) => Doc[K][number] } = {
       end: matching(s.end, TIME) ?? '00:00',
       room: optText(s.room, 300),
       building: optText(s.building, 300),
+      // Always sent, as a date or null: the server keeps saved dates only when they are missing (older apps).
+      startsOn: matching(s.startsOn, DATE) ?? null,
+      endsOn: matching(s.endsOn, DATE) ?? null,
     }),
   tasks: (t) =>
     tidy({
       id: t.id,
       kind: t.kind === 'assignment' ? 'assignment' : 'todo',
+      // Always sent, as "exam" or null: the server keeps a saved category only when it is missing (older apps).
+      // A to-do is never an exam.
+      category: t.kind === 'assignment' && t.category === 'exam' ? 'exam' : null,
       title: text(t.title, 1000),
       courseId: matching(t.courseId, ID),
       due: matching(t.due, DUE),
@@ -245,6 +251,17 @@ export function isEmpty(c: Changes): boolean {
   return !c.profile && KINDS.every((k) => c.upsert[k].length === 0 && c.remove[k].length === 0)
 }
 
+/**
+ * Fields an older app leaves out of a record (term dates and category before 1.9.0, totals before
+ * 1.7.0). A record without one keeps what the document holds, as the server does. Without this, a
+ * change saved by an older app and replayed here would clear them once cleaned.
+ */
+const KEEP_IF_MISSING: Partial<Record<Kind, readonly string[]>> = {
+  sessions: ['startsOn', 'endsOn'],
+  tasks: ['category'],
+  components: ['totalScore'],
+}
+
 /** Puts changes on top of a document. `renamed` maps a note to the copy that now holds this device's text. */
 export function apply(doc: Doc, changes: Changes, renamed: Record<string, string> = {}): Doc {
   const out = { ...doc, profile: { ...doc.profile, ...changes.profile } }
@@ -259,7 +276,15 @@ export function apply(doc: Doc, changes: Changes, renamed: Record<string, string
         // Only the links changed. If the note is gone, there is nothing left to link.
         if (old) records.set(id, { ...sent, id, title: old.title, body: old.body })
       } else {
-        records.set(id, { ...sent, id })
+        const was = old as Record<string, unknown> | undefined
+        const kept = was
+          ? Object.fromEntries(
+              (KEEP_IF_MISSING[kind] ?? [])
+                .filter((k) => (sent as Record<string, unknown>)[k] === undefined && was[k] != null)
+                .map((k) => [k, was[k]]),
+            )
+          : {}
+        records.set(id, { ...sent, ...kept, id })
       }
     }
     ;(out as Record<Kind, object[]>)[kind] = [...records.values()]

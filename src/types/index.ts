@@ -21,6 +21,13 @@ export interface ClassSession {
   end: string // "HH:mm" 24h
   room?: string
   building?: string
+  /**
+   * The first and last day this class meets, "YYYY-MM-DD", for academic terms. Missing means
+   * no limit on that side, so classes added before terms existed meet every week, as before.
+   * Ending a class keeps its past meetings on the calendar instead of deleting them.
+   */
+  startsOn?: string | null
+  endsOn?: string | null
 }
 
 export type TaskKind = 'assignment' | 'todo'
@@ -37,6 +44,11 @@ export interface Task {
   source: 'manual' | 'ics'
   /** UID from an imported calendar feed. Used to skip duplicates on re-import. */
   externalId?: string
+  /**
+   * What sort of assignment it is, beyond its kind. Only "exam" so far: an exam is an
+   * assignment (it can count toward the grade) that the calendar shows differently.
+   */
+  category?: 'exam' | null
 }
 
 /** A concrete upcoming meeting of a session, with real dates. */

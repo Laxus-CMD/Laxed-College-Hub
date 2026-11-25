@@ -1,7 +1,7 @@
 import { useEffect, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 
 // A radio group is one Tab stop, so only its checked radio counts.
-const FOCUSABLE =
+export const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]):not([type=radio]), input[type=radio]:checked, select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /**

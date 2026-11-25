@@ -14,7 +14,7 @@ import { SaveStatusLine } from '@/sync/SaveStatusLine'
 
 const MENU: { route: Route; label: string; short: string; icon: ComponentType<{ className?: string }> }[] = [
   { route: 'overview', label: 'Overview', short: 'Overview', icon: House },
-  { route: 'schedule', label: 'Weekly Schedule', short: 'Schedule', icon: CalendarDays },
+  { route: 'schedule', label: 'Schedule', short: 'Schedule', icon: CalendarDays },
   { route: 'assignments', label: 'Tasks & Assignments', short: 'Tasks', icon: PencilLine },
   { route: 'grades', label: 'Grade & GPA Calculator', short: 'Grades', icon: ChartColumn },
   { route: 'notes', label: 'Notes', short: 'Notes', icon: NotebookPen },

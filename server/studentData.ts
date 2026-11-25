@@ -37,6 +37,8 @@ const TABLES: Record<Kind, { table: string; columns: readonly Column[] }> = {
       ['end', 'end_time', 'text'],
       ['room', 'room', 'text'],
       ['building', 'building', 'text'],
+      ['startsOn', 'starts_on', 'text'],
+      ['endsOn', 'ends_on', 'text'],
     ],
   },
   tasks: {
@@ -51,6 +53,7 @@ const TABLES: Record<Kind, { table: string; columns: readonly Column[] }> = {
       ['weight', 'weight', 'double precision'],
       ['source', 'source', 'text'],
       ['externalId', 'external_id', 'text'],
+      ['category', 'category', 'text'],
     ],
   },
   notes: {
@@ -241,7 +244,13 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
       return { ...r, courseId: null }
     }
 
-    await upsertAll(t, userId, 'sessions', withCourse(upsert.sessions))
+    const sessions_ = await keepMissing(t, userId, 'class_sessions', withCourse(upsert.sessions), [
+      ['startsOn', 'starts_on'],
+      ['endsOn', 'ends_on'],
+    ])
+    // Kept dates are something other than what was sent, so the sender gets the saved version back.
+    if (sessions_.kept) adjusted = true
+    await upsertAll(t, userId, 'sessions', sessions_.list)
     const components = await keepTotals(t, userId, withCourse(upsert.components))
     // A kept total is something other than what was sent, so the sender gets the saved version back.
     if (components.kept) adjusted = true
@@ -249,7 +258,16 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
 
     const tasks = await withoutDuplicateImports(t, userId, upsert.tasks)
     if (tasks.length !== upsert.tasks.length) adjusted = true
-    await upsertAll(t, userId, 'tasks', tasks.map(unlinkCourse))
+    const tasks_ = await keepMissing(t, userId, 'tasks', tasks, [['category', 'category']])
+    if (tasks_.kept) adjusted = true
+    // A to-do is never an exam. An older app turning an exam into a to-do leaves the category out,
+    // so the kept one is dropped here, and the sender gets the saved version back.
+    const taskList = tasks_.list.map((r) => {
+      if (r.kind !== 'todo' || (r as { category?: unknown }).category == null) return r
+      adjusted = true
+      return { ...r, category: null }
+    })
+    await upsertAll(t, userId, 'tasks', taskList.map(unlinkCourse))
 
     // 3. Notes.
     const sessions = await existingIds(t, userId, 'sessions', upsert.notes)
@@ -392,6 +410,43 @@ async function enforceQuotas(t: Queryable, userId: string): Promise<void> {
   if (rows.reduce((sum, r) => sum + r.bytes, 0) > QUOTAS.bytes) {
     throw new HttpError(422, 'Your account is full. Delete some notes or tasks to save more.')
   }
+}
+
+/**
+ * Fields an older app does not know about keep what is saved when it leaves them out. Apps
+ * before 1.9.0 never send a class's term dates or a task's category, and an edit from such an
+ * app must not bring an ended class back into every week or turn an exam into an assignment.
+ * Clearing a field is an explicit null. `kept` says whether anything saved was filled in, so
+ * the sender gets the saved version back.
+ */
+async function keepMissing<T extends { id: string }>(
+  t: Queryable,
+  userId: string,
+  table: 'class_sessions' | 'tasks',
+  list: T[],
+  fields: readonly (readonly [string, string])[],
+): Promise<{ list: T[]; kept: boolean }> {
+  const value = (r: T, key: string) => (r as Record<string, unknown>)[key]
+  const missing = list.filter((r) => fields.some(([key]) => value(r, key) === undefined)).map((r) => r.id)
+  if (missing.length === 0) return { list, kept: false }
+  // Table and column names come from the fixed lists above, never from a request.
+  const { rows } = await t.query<Record<string, unknown> & { id: string }>(
+    `SELECT id, ${fields.map(([, col]) => col).join(', ')} FROM ${table} WHERE user_id = $1 AND id = ANY($2::text[])`,
+    [userId, missing],
+  )
+  const saved = new Map(rows.map((r) => [r.id, r]))
+  let kept = false
+  const out = list.map((r) => {
+    const was = saved.get(r.id)
+    const next: Record<string, unknown> = { ...r }
+    for (const [key, col] of fields) {
+      if (value(r, key) !== undefined) continue
+      next[key] = was?.[col] ?? null
+      if (next[key] !== null) kept = true
+    }
+    return next as T
+  })
+  return { list: out, kept }
 }
 
 /**

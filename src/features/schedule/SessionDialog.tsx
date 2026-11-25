@@ -3,7 +3,7 @@ import type { Weekday } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Choice, ChoiceGroup, Input, Label, Select } from '@/components/ui/Field'
 import { Dialog } from '@/components/ui/Dialog'
-import { toMinutes, WEEK_ORDER, WEEKDAY_SHORT } from '@/lib/time'
+import { addDays, dateKey, parseDateKey, toMinutes, WEEK_ORDER, WEEKDAY_SHORT } from '@/lib/time'
 import { findConflicts } from '@/features/schedule/scheduleUtils'
 import { deleteSession } from '@/store/actions'
 import { useScheduleStore } from '@/store/useScheduleStore'
@@ -28,11 +28,27 @@ export function SessionDialog({ id, preset }: Pick<SessionDialogState, 'id' | 'p
   const [end, setEnd] = useState(existing?.end ?? preset?.end ?? '09:30')
   const [room, setRoom] = useState(existing?.room ?? '')
   const [building, setBuilding] = useState(existing?.building ?? '')
+  // A new class added once a term has ended belongs to the next term: it starts the day after the
+  // last one ended, or with the classes already added to that next term. While a class of an older
+  // term is still running (no start date, or one on or before the last end), the new class is part
+  // of that term and gets no start date.
+  const [startsOn, setStartsOn] = useState(() => {
+    if (existing) return existing.startsOn ?? ''
+    const today = dateKey(new Date())
+    const ends = sessions.map((x) => x.endsOn).filter((d): d is string => !!d && d < today).sort()
+    const last = ends[ends.length - 1]
+    if (!last) return ''
+    const running = sessions.filter((x) => !x.endsOn || x.endsOn >= today)
+    if (running.some((x) => !x.startsOn || x.startsOn <= last)) return ''
+    const starts = running.map((x) => x.startsOn!).sort()
+    return starts[0] ?? dateKey(addDays(parseDateKey(last), 1))
+  })
+  const [endsOn, setEndsOn] = useState(existing?.endsOn ?? '')
   const [error, setError] = useState('')
 
   const conflicts = useMemo(
-    () => findConflicts(sessions, { days, start, end }, id),
-    [sessions, days, start, end, id],
+    () => findConflicts(sessions, { days, start, end, startsOn, endsOn }, id),
+    [sessions, days, start, end, startsOn, endsOn, id],
   )
   const courseOf = (cid: string) => courses.find((c) => c.id === cid)
 
@@ -59,6 +75,7 @@ export function SessionDialog({ id, preset }: Pick<SessionDialogState, 'id' | 'p
     if (days.length === 0) return setError('Choose at least one day.')
     if (!start || !end) return setError('Set a start and end time.')
     if (toMinutes(end) <= toMinutes(start)) return setError('End time must be after the start time.')
+    if (startsOn && endsOn && endsOn < startsOn) return setError('The last day must be on or after the first day.')
     const data = {
       courseId,
       days: [...days].sort((a, b) => WEEK_ORDER.indexOf(a) - WEEK_ORDER.indexOf(b)),
@@ -66,6 +83,8 @@ export function SessionDialog({ id, preset }: Pick<SessionDialogState, 'id' | 'p
       end,
       room: room.trim() || undefined,
       building: building.trim() || undefined,
+      startsOn: startsOn || null,
+      endsOn: endsOn || null,
     }
     if (existing) updateSession(existing.id, data)
     else addSession(data)
@@ -115,6 +134,15 @@ export function SessionDialog({ id, preset }: Pick<SessionDialogState, 'id' | 'p
             <Input maxLength={60} value={building} onChange={(e) => setBuilding(e.target.value)} />
           </Label>
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Label label="First day (optional)">
+            <Input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} />
+          </Label>
+          <Label label="Last day (optional)">
+            <Input type="date" value={endsOn} min={startsOn || undefined} onChange={(e) => setEndsOn(e.target.value)} />
+          </Label>
+        </div>
+        <p className="-mt-2 text-[12.5px] text-faint">For the term. Past weeks keep showing the class after it ends.</p>
         {conflicts.length > 0 ? (
           <p role="status" className="text-[13px] text-warn">
             This overlaps with{' '}

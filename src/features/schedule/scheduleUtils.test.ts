@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ClassSession } from '@/types'
-import { findConflicts, latestMeetingOnOrBefore, layoutDay, weeklyMinutes } from './scheduleUtils'
+import { currentSessions, findConflicts, latestMeetingOnOrBefore, layoutDay, meetsOn, weeklyMinutes } from './scheduleUtils'
 
 const s = (id: string, days: ClassSession['days'], start: string, end: string): ClassSession => ({
   id,
@@ -52,5 +52,33 @@ describe('weeklyMinutes and latestMeetingOnOrBefore', () => {
     expect(latestMeetingOnOrBefore(sess, thu)?.getDate()).toBe(29)
     expect(latestMeetingOnOrBefore(sess, new Date(2026, 9, 31))?.getDate()).toBe(29) // Saturday looks back to Thursday
     expect(latestMeetingOnOrBefore(s('x', [], '09:00', '10:00'), thu)).toBeNull()
+  })
+})
+
+describe('academic terms', () => {
+  const fall = { ...s('fall', [1, 4], '09:15', '10:45'), startsOn: '2026-09-07', endsOn: '2026-12-12' }
+  const spring = { ...s('spring', [1, 4], '09:15', '10:45'), startsOn: '2027-01-11' }
+
+  it('meets only within its term, and every week without one', () => {
+    expect(meetsOn(fall, new Date(2026, 8, 7))).toBe(true) // first Monday
+    expect(meetsOn(fall, new Date(2026, 8, 3))).toBe(false) // a Thursday before it starts
+    expect(meetsOn(fall, new Date(2026, 11, 14))).toBe(false) // Monday after it ends
+    expect(meetsOn(s('any', [1], '09:00', '10:00'), new Date(2020, 0, 6))).toBe(true)
+  })
+
+  it('counts upcoming terms as current, and ended ones as not', () => {
+    const today = new Date(2026, 11, 20)
+    expect(currentSessions([fall, spring], today).map((x) => x.id)).toEqual(['spring'])
+  })
+
+  it('does not report a conflict with a class from another term', () => {
+    expect(findConflicts([fall], { days: [1], start: '09:30', end: '10:30', startsOn: '2027-01-11' })).toEqual([])
+    expect(findConflicts([fall], { days: [1], start: '09:30', end: '10:30', startsOn: '2026-11-01' })).toHaveLength(1)
+    expect(findConflicts([fall], { days: [1], start: '09:30', end: '10:30' })).toHaveLength(1)
+  })
+
+  it('finds the last meeting of an ended class at the end of its term', () => {
+    expect(latestMeetingOnOrBefore(fall, new Date(2027, 2, 1))).toEqual(new Date(2026, 11, 10)) // Thursday, Dec 10
+    expect(latestMeetingOnOrBefore(spring, new Date(2026, 11, 20))).toBeNull()
   })
 })
