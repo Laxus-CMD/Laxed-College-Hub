@@ -25,6 +25,8 @@ export interface Pending {
   email: string
   /** The tab that made these changes. Sent as `clientId`. */
   clientId: string
+  /** Original writer's order, retained when another tab recovers this snapshot. */
+  sequence?: number
   /** The account revision the changes were made on. Sent as `baseRevision`. */
   revision: number
   changes: Changes
@@ -85,7 +87,9 @@ function parse(text: string | null): Pending | null {
   if (!ok) return null
   // Only feature names this app knows; anything else counts as not listed.
   const features = Array.isArray(p.features) ? API_FEATURES.filter((f) => (p.features as unknown[]).includes(f)) : undefined
-  return { ...(p as Pending), features }
+  // A damaged order number would be refused by the server every time, so send it as an older build did.
+  const sequence = Number.isSafeInteger(p.sequence) && p.sequence! >= 1 ? p.sequence : undefined
+  return { ...(p as Pending), features, sequence }
 }
 
 /**

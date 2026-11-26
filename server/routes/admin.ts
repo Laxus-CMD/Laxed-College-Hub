@@ -41,23 +41,33 @@ export function adminRoutes(db: Db): Router {
     if (demoting && target.id === req.user!.id) {
       throw new HttpError(400, 'You cannot remove your own admin access. Ask another admin.')
     }
-    if (demoting && target.role === 'admin') {
-      const { rows } = await db.query<{ n: number }>(
-        'SELECT count(*)::int AS n FROM users WHERE role_id = $1 AND is_active AND id <> $2',
-        [ROLE_IDS.admin, target.id],
-      )
-      if ((rows[0]?.n ?? 0) === 0) throw new HttpError(400, 'There must be at least one active admin.')
-    }
 
-    await db.query(
-      `UPDATE users SET role_id = COALESCE($2, role_id), is_active = COALESCE($3, is_active), updated_at = now()
-        WHERE id = $1`,
-      [target.id, body.data.role ? ROLE_IDS[body.data.role] : null, body.data.isActive ?? null],
-    )
-    // A role or status change takes effect at once: their open sessions end.
-    await deleteUserSessions(db, target.id)
-    await audit(db, { action: 'admin.user_updated', actorId: req.user!.id, targetId: target.id, detail: body.data, ip: req.ip })
-    res.json({ user: publicUser((await findUserById(db, target.id))!) })
+    const updated = await db.tx(async (t) => {
+      if (demoting) {
+        // Two admins demoting each other at once must take turns, or both could succeed and leave none.
+        // Same order as account deletion (by id), so the two can never wait on each other.
+        const { rows: admins } = await t.query<{ id: string }>(
+          'SELECT id FROM users WHERE role_id = $1 AND is_active ORDER BY id FOR UPDATE',
+          [ROLE_IDS.admin],
+        )
+        // Read again now that we hold the lock: the target may have changed while we waited.
+        const now = await findUserById(t, target.id)
+        if (!now) throw new HttpError(404, 'Unknown user.')
+        if (now.role === 'admin' && !admins.some((a) => a.id !== now.id)) {
+          throw new HttpError(400, 'There must be at least one active admin.')
+        }
+      }
+      await t.query(
+        `UPDATE users SET role_id = COALESCE($2, role_id), is_active = COALESCE($3, is_active), updated_at = now()
+          WHERE id = $1`,
+        [target.id, body.data.role ? ROLE_IDS[body.data.role] : null, body.data.isActive ?? null],
+      )
+      // A role or status change takes effect at once: their open sessions end.
+      await deleteUserSessions(t, target.id)
+      await audit(t, { action: 'admin.user_updated', actorId: req.user!.id, targetId: target.id, detail: body.data, ip: req.ip })
+      return (await findUserById(t, target.id))!
+    })
+    res.json({ user: publicUser(updated) })
   })
 
   router.get('/audit', async (_req, res) => {

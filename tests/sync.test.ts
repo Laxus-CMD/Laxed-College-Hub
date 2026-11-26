@@ -547,6 +547,28 @@ describe('two devices', () => {
 })
 
 describe('when saving fails', () => {
+  it('keeps the newer edit when an earlier request reaches the real API after retry', async () => {
+    const a = await signUp()
+    const engine = await openApp(a)
+    await engine.flush()
+    useSettingsStore.getState().setName('First edit')
+    const transport = globalThis.fetch
+    let deliverLate!: () => Promise<Response>
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      deliverLate = () => transport(url, init)
+      return Promise.reject(new TypeError('Connection lost before acknowledgement'))
+    })
+    await engine.save()
+    expect(status()).toBe('retrying')
+    vi.stubGlobal('fetch', transport)
+    useSettingsStore.getState().setName('Second edit')
+    await engine.retryNow()
+    const acknowledged = await stored()
+    expect(acknowledged.profile.name).toBe('Second edit')
+    expect((await deliverLate()).status).toBe(200)
+    expect(await stored()).toEqual(acknowledged)
+  })
+
   it('keeps trying and recovers', async () => {
     const a = await signUp()
     const e = await openApp(a)
@@ -1128,6 +1150,28 @@ describe('recovery never deletes the last kept copy', () => {
       changes: { upsert: { ...NONE, tasks: [{ id: 't-kept', kind: 'todo', title, done: false, source: 'manual' } as any] }, remove: { ...NONE } },
     })
   const keptTitles = (a: Account) => listPending(a.id).flatMap((p) => p.changes.upsert.tasks.map((t) => t.title))
+
+  it('stops recovery when the account switches while a rejected entry is in flight', async () => {
+    const b = await signUp()
+    const a = await signUp()
+    keptTask(a, 'tab-first', 'first')
+    keptTask(a, 'tab-second', 'second')
+    let release!: (response: Response) => void
+    network = (method, path) => method === 'POST' && path.endsWith('/data/sync')
+      ? new Promise<Response>((resolve) => { release = resolve })
+      : undefined
+    const engine = newEngine()
+    const opening = engine.open(a)
+    await vi.waitFor(() => expect(saves).toHaveLength(1))
+    await signIn(b)
+    await engine.open(b)
+    release(new Response('{}', { status: 422 }))
+    await opening
+    expect(saves).toHaveLength(1)
+    expect(listPending(a.id)).toHaveLength(2)
+    expect(useSyncStore.getState()).toMatchObject({ accountId: b.id, phase: 'ready' })
+    expect(titles()).toEqual([])
+  })
 
   it('keeps the original draft when the account refuses it and the browser will not store the replacement', async () => {
     const a = await signUp()
