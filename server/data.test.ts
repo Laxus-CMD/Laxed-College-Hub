@@ -7,7 +7,7 @@ import { loadConfig } from './config.ts'
 import { QUOTAS, saveBody } from './dataSchema.ts'
 import { connectDb, type Db } from './db.ts'
 import { migrate } from './migrate.ts'
-import { saveData, type SaveResult, type StudentData } from './studentData.ts'
+import { MAX_SYNC_CLIENTS, saveData, type SaveResult, type StudentData } from './studentData.ts'
 
 const ORIGIN = 'http://localhost:5173'
 const PASSWORD = 'a long passphrase 42'
@@ -331,6 +331,35 @@ describe('two devices', () => {
     // Another tab starts at 1 and is not held back by tab-a's numbers.
     expect((await send('tab-beta-1', 1, { upsert: { tasks: [task('t2')] } })).status).toBe(200)
     expect((await s.load()).tasks.map((t) => (t as { id: string }).id).sort()).toEqual(['t1', 't2'])
+  })
+
+  it('keeps a bounded number of save orders per student, and never drops the one just written', async () => {
+    const s = await student()
+    await s.save({ upsert: { tasks: [task('t1')] } })
+    // Many page loads: far more client ids than the cap, all recently used.
+    await db.query(
+      `INSERT INTO sync_client_sequences (user_id, client_id, sequence, touched_at)
+       SELECT $1, 'old-client-' || g, 1, now() - make_interval(secs => g) FROM generate_series(1, $2) g`,
+      [s.accountId, MAX_SYNC_CLIENTS + 20],
+    )
+    const res = await call(s.cookie, 'POST', '/data/sync', {
+      accountId: s.accountId, clientId: 'tab-newest-1', baseRevision: 1, upsert: { tasks: [task('t2')] },
+    }, { 'X-Sync-Sequence': '1' })
+    expect(res.status).toBe(200)
+    const { rows } = await db.query<{ client_id: string }>('SELECT client_id FROM sync_client_sequences WHERE user_id = $1', [s.accountId])
+    expect(rows).toHaveLength(MAX_SYNC_CLIENTS)
+    expect(rows.map((r) => r.client_id)).toContain('tab-newest-1')
+    // The oldest were the ones forgotten.
+    expect(rows.map((r) => r.client_id)).not.toContain(`old-client-${MAX_SYNC_CLIENTS + 20}`)
+  })
+
+  it('answers 503 with Retry-After when the database gives up waiting, and rethrows anything else', async () => {
+    const failing = (code: string): Db => ({ ...db, tx: async () => { throw Object.assign(new Error('boom'), { code }) } })
+    const body = saveBody.parse({ accountId: crypto.randomUUID(), clientId: 'tab-timeout-1', baseRevision: 0 })
+    for (const code of ['55P03', '57014']) {
+      await expect(saveData(failing(code), body.accountId, body)).rejects.toMatchObject({ status: 503, retryAfter: 5 })
+    }
+    await expect(saveData(failing('23505'), body.accountId, body)).rejects.toMatchObject({ code: '23505' })
   })
 
   it('sends back everything when another device saved first, and merges both', async () => {

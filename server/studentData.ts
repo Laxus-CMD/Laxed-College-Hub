@@ -184,9 +184,45 @@ interface SavedNote {
   text_client: string
 }
 
+/** The most save-order records kept per student. Older ones are forgotten, never the one just written. */
+export const MAX_SYNC_CLIENTS = 500
+
+/** How long a save may wait or run before the database gives up, so a stuck one cannot hold a connection past the host's own limit. */
+export interface SaveTimeouts {
+  lock: string
+  statement: string
+  idleInTransaction: string
+}
+export const DEFAULT_SAVE_TIMEOUTS: SaveTimeouts = { lock: '5s', statement: '10s', idleInTransaction: '15s' }
+
 /** Applies a whole save, or none of it. Saves for one student take turns. */
-export async function saveData(db: Db, userId: string, body: SaveBody, sequence?: number): Promise<SaveResult> {
+export async function saveData(
+  db: Db,
+  userId: string,
+  body: SaveBody,
+  sequence?: number,
+  timeouts: SaveTimeouts = DEFAULT_SAVE_TIMEOUTS,
+): Promise<SaveResult> {
+  try {
+    return await saveInTransaction(db, userId, body, sequence, timeouts)
+  } catch (err) {
+    // Only "waited too long for a lock" and "ran too long": the save did not happen, and trying again is safe.
+    const code = (err as { code?: unknown })?.code
+    if (code === '55P03' || code === '57014') {
+      throw new HttpError(503, 'The server is busy. Trying again shortly.', { retryAfter: 5 })
+    }
+    throw err
+  }
+}
+
+async function saveInTransaction(db: Db, userId: string, body: SaveBody, sequence: number | undefined, timeouts: SaveTimeouts): Promise<SaveResult> {
   return db.tx(async (t) => {
+    // First, so every statement below is covered. Local to this transaction, so nothing leaks to the next user of the connection.
+    await t.query(
+      `SELECT set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true),
+              set_config('idle_in_transaction_session_timeout', $3, true)`,
+      [timeouts.lock, timeouts.statement, timeouts.idleInTransaction],
+    )
     // FOR KEY SHARE waits for an account deletion in progress, and then finds nobody.
     await t.query(
       `INSERT INTO student_profiles (user_id) SELECT id FROM users WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM student_profiles WHERE user_id = $1)
@@ -206,6 +242,12 @@ export async function saveData(db: Db, userId: string, body: SaveBody, sequence?
         [userId, body.clientId, sequence],
       )
       if (!accepted.rows.length) return { revision: profile.revision, data: await loadData(t, userId), noteCopies: {} }
+      // Every page load is a new client id, so bound the table. Only after the upsert above, so this save's own record stays.
+      await t.query(
+        `DELETE FROM sync_client_sequences WHERE user_id = $1 AND client_id IN (
+           SELECT client_id FROM sync_client_sequences WHERE user_id = $1 ORDER BY touched_at DESC, client_id OFFSET $2)`,
+        [userId, MAX_SYNC_CLIENTS],
+      )
     }
     const stale = body.baseRevision !== profile.revision
     const { upsert, remove } = body

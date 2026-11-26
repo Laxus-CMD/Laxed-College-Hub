@@ -58,6 +58,12 @@ export async function connectDb(
       tx: async (fn) => {
         const client = await pool.connect()
         let broken: Error | undefined
+        // A connection the server ends mid-transaction (for example an idle-transaction timeout) reports here.
+        // Without a listener that would crash the process; with one, the connection is destroyed, never reused.
+        const onError = (e: Error) => {
+          broken = e
+        }
+        client.on('error', onError)
         try {
           await client.query('BEGIN')
           const result = await fn({
@@ -75,6 +81,7 @@ export async function connectDb(
           throw err
         } finally {
           // A client that could not roll back is destroyed, never reused.
+          client.removeListener('error', onError)
           client.release(broken)
         }
       },

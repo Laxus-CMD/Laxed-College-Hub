@@ -178,7 +178,7 @@ export function authRoutes(db: Db, config: Config, limits: AuthLimits = DEFAULT_
     await db.tx(async (t) => {
       if (user.role === 'admin') {
         // Lock the admins, so the last two cannot both leave at once.
-        const { rows } = await t.query('SELECT id FROM users WHERE role_id = $1 AND is_active FOR UPDATE', [ROLE_IDS.admin])
+        const { rows } = await t.query('SELECT id FROM users WHERE role_id = $1 AND is_active ORDER BY id FOR UPDATE', [ROLE_IDS.admin])
         if (!rows.some((r) => r.id !== user.id)) throw new HttpError(400, 'You are the only admin. Make someone else an admin first.')
       }
       // Sessions and identities go with the user. Past audit entries stay, without a link to the person.
