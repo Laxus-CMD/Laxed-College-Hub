@@ -22,6 +22,7 @@ jobs:
   # The embedded test database has one connection, so it cannot race. This job runs the
   # concurrency tests against a real Postgres. Match the image to the production version.
   postgres:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     services:
       postgres:

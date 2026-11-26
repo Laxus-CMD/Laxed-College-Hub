@@ -14,6 +14,8 @@ import { saveData } from './studentData.ts'
  * a connection the server ends. The rest of the suite runs on the embedded database, which has one
  * connection and so cannot race. Skipped unless TEST_DATABASE_URL points at an empty, disposable database.
  *
+ * The user needs the CREATEDB privilege (the migration-race test makes a scratch database).
+ *
  *   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/college_hub_test npm run test:run -- server/postgres.test.ts
  */
 const URL_ = process.env.TEST_DATABASE_URL
@@ -61,6 +63,16 @@ describe.skipIf(!URL_)('real Postgres', () => {
     return { email, cookie, id: json.user.id as string }
   }
 
+  /**
+   * Exactly one of two racing requests succeeds. The loser is refused: 400 when it ran after the winner's
+   * commit and saw the rule, or 401/403 when the winner had already ended its session.
+   */
+  function expectOneWinner(results: { status: number; json: unknown }[], ok: number[]) {
+    const detail = JSON.stringify(results.map((r) => [r.status, r.json]))
+    expect(results.filter((r) => ok.includes(r.status)), detail).toHaveLength(1)
+    expect(results.filter((r) => !ok.includes(r.status)).every((r) => [400, 401, 403].includes(r.status)), detail).toBe(true)
+  }
+
   /** Makes exactly these people the only active admins, whoever else the shared database holds. */
   async function onlyAdmins(...ids: string[]) {
     await db.query('UPDATE users SET role_id = 2 WHERE role_id = 1 AND NOT (id = ANY($1::uuid[]))', [ids])
@@ -84,7 +96,7 @@ describe.skipIf(!URL_)('real Postgres', () => {
     } finally {
       await a.close()
       await b.close()
-      await db.query(`DROP DATABASE ${name}`)
+      await db.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`)
     }
   })
 
@@ -97,7 +109,7 @@ describe.skipIf(!URL_)('real Postgres', () => {
         call(a.cookie, 'PATCH', `/admin/users/${b.id}`, { role: 'user' }),
         call(b.cookie, 'PATCH', `/admin/users/${a.id}`, { role: 'user' }),
       ])
-      expect([x.status, y.status].sort(), `round ${round}: ${JSON.stringify([x.json, y.json])}`).toEqual([200, 400])
+      expectOneWinner([x, y], [200])
       expect(await activeAdmins()).toBe(1)
     }
   })
@@ -111,7 +123,7 @@ describe.skipIf(!URL_)('real Postgres', () => {
         call(a.cookie, 'PATCH', `/admin/users/${b.id}`, { isActive: false }),
         call(b.cookie, 'PATCH', `/admin/users/${a.id}`, { isActive: false }),
       ])
-      expect([x.status, y.status].sort()).toEqual([200, 400])
+      expectOneWinner([x, y], [200])
       expect(await activeAdmins()).toBe(1)
     }
     // Both admins delete their own account at the same moment: one must be refused, and neither request may deadlock.
@@ -123,7 +135,7 @@ describe.skipIf(!URL_)('real Postgres', () => {
         call(a.cookie, 'POST', '/auth/delete', { password: PASSWORD }),
         call(b.cookie, 'POST', '/auth/delete', { password: PASSWORD }),
       ])
-      expect([x.status, y.status].sort(), JSON.stringify([x.json, y.json])).toEqual([204, 400])
+      expectOneWinner([x, y], [204])
       expect(await activeAdmins()).toBe(1)
     }
     // One admin deletes their account while the other is demoting a third: no deadlock, and someone is left.
@@ -172,14 +184,18 @@ describe.skipIf(!URL_)('real Postgres', () => {
       await gate
     })
     await holding
-    const started = Date.now()
-    await expect(saveData(db, s.id, body, undefined, { lock: '300ms', statement: '10s', idleInTransaction: '15s' })).rejects.toMatchObject({
-      status: 503,
-      retryAfter: 5,
-    })
-    expect(Date.now() - started).toBeLessThan(5000)
-    release()
-    await holder
+    try {
+      const started = Date.now()
+      await expect(saveData(db, s.id, body, undefined, { lock: '300ms', statement: '10s', idleInTransaction: '15s' })).rejects.toMatchObject({
+        status: 503,
+        retryAfter: 5,
+      })
+      expect(Date.now() - started).toBeLessThan(5000)
+    } finally {
+      // Always let go, or a failed assertion would leave the lock held and the run hanging.
+      release()
+      await holder
+    }
     // The timeout left no half-applied state and no poisoned connection.
     await expect(saveData(db, s.id, body)).resolves.toMatchObject({ revision: 0 })
   })

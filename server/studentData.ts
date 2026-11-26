@@ -245,8 +245,8 @@ async function saveInTransaction(db: Db, userId: string, body: SaveBody, sequenc
       // Every page load is a new client id, so bound the table. Only after the upsert above, so this save's own record stays.
       await t.query(
         `DELETE FROM sync_client_sequences WHERE user_id = $1 AND client_id IN (
-           SELECT client_id FROM sync_client_sequences WHERE user_id = $1 ORDER BY touched_at DESC, client_id OFFSET $2)`,
-        [userId, MAX_SYNC_CLIENTS],
+           SELECT client_id FROM sync_client_sequences WHERE user_id = $1 ORDER BY touched_at DESC, client_id OFFSET $2) AND client_id <> $3`,
+        [userId, MAX_SYNC_CLIENTS, body.clientId],
       )
     }
     const stale = body.baseRevision !== profile.revision
