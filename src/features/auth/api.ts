@@ -47,7 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(method: string, path: string, body?: unknown, { keepalive = false } = {}): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown, { keepalive = false, sequence }: { keepalive?: boolean; sequence?: number } = {}): Promise<T> {
   let res: Response
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -55,7 +55,7 @@ export async function request<T>(method: string, path: string, body?: unknown, {
       credentials: 'same-origin',
       // Lets a save finish while the page is closing.
       keepalive,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json', ...(sequence === undefined ? {} : { 'X-Sync-Sequence': String(sequence) }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {

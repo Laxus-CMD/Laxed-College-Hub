@@ -50,7 +50,10 @@ export function dataRoutes(db: Db, limits: DataLimits = DEFAULT_DATA_LIMITS): Ro
     async (req, res) => {
       const body = parse(saveBody, req.body)
       if (body.accountId !== req.user!.id) throw new HttpError(409, 'You are signed in to another account in this browser.')
-      res.json(await saveData(db, req.user!.id, body))
+      const header = req.get('X-Sync-Sequence')
+      const sequence = header === undefined ? undefined : /^\d{1,15}$/.test(header) ? Number(header) : 0
+      if (sequence !== undefined && sequence < 1) throw new HttpError(400, 'Invalid sync sequence.')
+      res.json(await saveData(db, req.user!.id, body, sequence))
     },
   )
 

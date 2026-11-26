@@ -291,6 +291,48 @@ describe('links between records', () => {
 })
 
 describe('two devices', () => {
+  it('rejects the effect of delayed and duplicate saves from the original writer before any data is mutated', async () => {
+    const s = await student()
+    const send = (sequence: number, changes: object) => call(s.cookie, 'POST', '/data/sync', {
+      accountId: s.accountId, clientId: 'tab-origin', baseRevision: 0, ...changes,
+    }, { 'X-Sync-Sequence': String(sequence) })
+    const latest = task('t1', { title: 'Latest edit' })
+    expect((await send(2, { upsert: { tasks: [latest] } })).status).toBe(200)
+    for (const sequence of [1, 2]) {
+      const late = await send(sequence, { remove: { tasks: ['t1'] }, profile: { name: 'Old name' } })
+      expect(late.status).toBe(200)
+      expect(late.json).toMatchObject({ revision: 1, data: { tasks: [latest] } })
+    }
+    const saved = await s.load()
+    expect(saved.tasks).toEqual([latest])
+    expect(saved.profile.name).not.toBe('Old name')
+  })
+
+  it('refuses a malformed sync sequence, and accepts saves without one', async () => {
+    const s = await student()
+    const send = (sequence: string | undefined, id: string) => call(s.cookie, 'POST', '/data/sync', {
+      accountId: s.accountId, clientId: 'tab-alpha-1', baseRevision: 0, upsert: { tasks: [task(id)] },
+    }, sequence === undefined ? {} : { 'X-Sync-Sequence': sequence })
+    for (const bad of ['0', '-1', '1.5', '1e3', '+5', 'abc', '', '9'.repeat(16)]) expect((await send(bad, 'x')).status).toBe(400)
+    expect((await s.load()).tasks).toEqual([])
+    const ok = await send(undefined, 't1'); expect(ok.status, JSON.stringify(ok.json)).toBe(200)
+    expect((await s.load()).tasks).toHaveLength(1)
+  })
+
+  it('does not use up a sequence when the save is rolled back, and keeps clients apart', async () => {
+    const s = await student()
+    await s.save({ upsert: { courses: Array.from({ length: QUOTAS.courses }, (_, i) => course(`c${i}`)) } })
+    const send = (clientId: string, sequence: number, changes: object) => call(s.cookie, 'POST', '/data/sync', {
+      accountId: s.accountId, clientId, baseRevision: 1, ...changes,
+    }, { 'X-Sync-Sequence': String(sequence) })
+    expect((await send('tab-alpha-1', 5, { upsert: { courses: [course('one-more')] } })).status).toBe(422)
+    // The refused save left no sequence behind, so the same number is still accepted.
+    expect((await send('tab-alpha-1', 5, { upsert: { tasks: [task('t1')] } })).status).toBe(200)
+    // Another tab starts at 1 and is not held back by tab-a's numbers.
+    expect((await send('tab-beta-1', 1, { upsert: { tasks: [task('t2')] } })).status).toBe(200)
+    expect((await s.load()).tasks.map((t) => (t as { id: string }).id).sort()).toEqual(['t1', 't2'])
+  })
+
   it('sends back everything when another device saved first, and merges both', async () => {
     const s = await student()
     const phone = s.tab('tab-phone-1')

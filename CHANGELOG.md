@@ -2,6 +2,11 @@
 
 Patch notes for College Hub. Newest first.
 
+## 1.10.0 · Tasks workspace
+
+- Classic, Flow and Workload share one task list. Flow tracks progress, and Workload uses optional time estimates. Account workspaces use the features advertised by their API.
+- **Deployment evidence (2026-11-25):** [PR #17](https://github.com/Laxus-CMD/Laxed-College-Hub/pull/17) merged at `711bd1a`. GitHub Pages reported a successful demo deployment and [Vercel reported a completed deployment for that commit](https://vercel.com/laxus3/laxed-college-hub/7rJ2qJkdAU8dpR7xMye4afT56mAW). That commit carried package version 1.9.0. The 1.10.0 version metadata and subsequent sync fixes await separate deployment verification. The provider status alone does not verify the custom-domain alias.
+
 ## 1.9.0 · 2026-11-24 · Academic calendar
 
 ### New

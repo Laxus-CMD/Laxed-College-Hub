@@ -165,6 +165,12 @@ export function notYetApplied(changes: Changes, server: Doc): Changes {
 export class SyncEngine {
   /** Tells the server which tab a save came from, so a retry is not mistaken for another device. */
   private readonly clientId = newClientId()
+  /**
+   * Order of this tab's saves. Snapshots, live saves and close-time saves share it.
+   * A kept snapshot can be numbered below a save that already applied a superset of it, because
+   * later saves always carry the earlier unconfirmed edits. The server then skips it, which is correct.
+   */
+  private sequence = 0
   private open_: Open | null = null
   /** Goes up on every sign-in and sign-out, so late answers for an earlier account are ignored. */
   private epoch = 0
@@ -301,10 +307,12 @@ export class SyncEngine {
    * Throws when the server cannot be reached, and then every entry stays for next time.
    */
   private async recover(open: Open, epoch: number): Promise<{ saved: number; refused: { entry: Pending; changes: Changes }[] }> {
-    const live = await liveTabs()
     let saved = 0
     const refused: { entry: Pending; changes: Changes }[] = []
+    if (!listPending(open.account.id).length) return { saved, refused }
+    const live = await withTimeout(liveTabs())
     for (const p of listPending(open.account.id)) {
+      if (epoch !== this.epoch) break
       if (p.clientId !== this.clientId && live.has(p.clientId)) continue
       const changes = withoutTaskFields(
         notYetApplied(p.changes, open.base),
@@ -318,13 +326,14 @@ export class SyncEngine {
       }
       try {
         const body = { accountId: p.accountId, clientId: p.clientId, baseRevision: p.revision, ...forApi(changes) }
-        const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body))
+        const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body, { sequence: p.sequence }))
         if (epoch !== this.epoch) return { saved, refused }
         open.base = res.data ? this.fromServer(res.data) : apply(open.base, changes)
         open.revision = res.revision
         dropPendingIfSame(p)
         saved++
       } catch (err) {
+        if (epoch !== this.epoch) break
         // Sending it again would not help. Show it instead, so the student can make room or fix it.
         if (isStatus(err, 400, 413, 422)) refused.push({ entry: p, changes })
         else throw err
@@ -381,14 +390,14 @@ export class SyncEngine {
   /** The session cookie belongs to someone else now. Show that account instead. */
   private async followSession(epoch: number): Promise<void> {
     try {
-      const account = await accountsApi.me()
+      const account = await withTimeout(accountsApi.me())
       if (epoch !== this.epoch) return
       if (account.id === useSyncStore.getState().accountId) throw new Error('The session changed back meanwhile.')
       useAuthStore.getState().signInAccount(account)
     } catch (err) {
       if (epoch !== this.epoch) return
       if (isStatus(err, 401)) useAuthStore.getState().sessionEnded()
-      else if (!this.open_) useSyncStore.setState({ phase: 'load-error', message: 'You signed in to another account in this browser.' })
+      else if (!this.open_) useSyncStore.setState({ phase: 'load-error', message: isStatus(err, 0) && err instanceof Error ? err.message : 'You signed in to another account in this browser.' })
     }
   }
 
@@ -407,6 +416,7 @@ export class SyncEngine {
         accountId: open.account.id,
         email: open.account.email,
         clientId: this.clientId,
+        sequence: ++this.sequence,
         revision: open.revision,
         changes,
         features: [...useSyncStore.getState().features],
@@ -510,7 +520,7 @@ export class SyncEngine {
     if (!this.retryDelay) useSyncStore.setState({ status: 'saving', message: null })
     this.firstUnsavedAt = 0
     try {
-      const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body, { keepalive }))
+      const res = await withTimeout(request<SaveResponse>('POST', '/data/sync', body, { keepalive, sequence: ++this.sequence }))
       if (epoch !== this.epoch) return
       this.retryDelay = 0
       this.lastChecked = Date.now()

@@ -185,7 +185,7 @@ interface SavedNote {
 }
 
 /** Applies a whole save, or none of it. Saves for one student take turns. */
-export async function saveData(db: Db, userId: string, body: SaveBody): Promise<SaveResult> {
+export async function saveData(db: Db, userId: string, body: SaveBody, sequence?: number): Promise<SaveResult> {
   return db.tx(async (t) => {
     // FOR KEY SHARE waits for an account deletion in progress, and then finds nobody.
     await t.query(
@@ -196,6 +196,17 @@ export async function saveData(db: Db, userId: string, body: SaveBody): Promise<
     const { rows } = await t.query<ProfileRow>('SELECT * FROM student_profiles WHERE user_id = $1 FOR UPDATE', [userId])
     const profile = rows[0]
     if (!profile) throw new HttpError(401, 'Please sign in.')
+    if (sequence !== undefined) {
+      // Every page load is a new client, so forget the ones this student has not used for a month.
+      await t.query(`DELETE FROM sync_client_sequences WHERE user_id = $1 AND touched_at < now() - interval '30 days'`, [userId])
+      const accepted = await t.query(
+        `INSERT INTO sync_client_sequences (user_id, client_id, sequence) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, client_id) DO UPDATE SET sequence = EXCLUDED.sequence, touched_at = now()
+         WHERE sync_client_sequences.sequence < EXCLUDED.sequence RETURNING sequence`,
+        [userId, body.clientId, sequence],
+      )
+      if (!accepted.rows.length) return { revision: profile.revision, data: await loadData(t, userId), noteCopies: {} }
+    }
     const stale = body.baseRevision !== profile.revision
     const { upsert, remove } = body
 

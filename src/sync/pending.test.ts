@@ -22,6 +22,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('pending changes', () => {
+  it('keeps a valid save order, and drops a damaged one so the server is not sent a header it refuses', () => {
+    savePending({ ...entry('acc-a', 'tab-1'), sequence: 7 })
+    for (const [i, bad] of [0, -2, 1.5, '3', Number.MAX_SAFE_INTEGER + 2].entries()) savePending({ ...entry('acc-b', `tab-${i}`), sequence: bad as number })
+    savePending(entry('acc-c', 'tab-old'))
+    expect(listPending('acc-a')[0]!.sequence).toBe(7)
+    expect(listPending('acc-b')).toHaveLength(5)
+    expect(listPending('acc-b').every((p) => p.sequence === undefined)).toBe(true)
+    expect(listPending('acc-c')[0]!.sequence).toBeUndefined()
+  })
+
   it('keeps one entry per account and tab, and lists them by account', () => {
     expect(savePending(entry('acc-a', 'tab-1'))).toBe('device')
     savePending(entry('acc-a', 'tab-2'))
